@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>销售业绩记录工具 - 使用说明</title>
+<style>
+:root {
+  --bg: #f8f9fa;
+  --card: #ffffff;
+  --ink: #1a1a2e;
+  --muted: #6c757d;
+  --accent: #4f46e5;
+  --accent-soft: #eef2ff;
+  --accent2: #06b6d4;
+  --success: #10b981;
+  --success-soft: #d1fae5;
+  --warning: #f59e0b;
+  --warning-soft: #fef3c7;
+  --danger: #ef4444;
+  --danger-soft: #fee2e2;
+  --border: #e5e7eb;
+  --radius: 12px;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, 'PingFang SC', 'Noto Sans CJK SC', 'Microsoft YaHei', sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  line-height: 1.7;
+  padding: 1rem;
+  max-width: 800px;
+  margin: 0 auto;
+}
+h1 {
+  font-size: 1.8rem;
+  text-align: center;
+  margin-bottom: 0.5rem;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.subtitle {
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.95rem;
+  margin-bottom: 2rem;
+}
+h2 {
+  font-size: 1.3rem;
+  margin: 2rem 0 1rem;
+  padding-left: 0.75rem;
+  border-left: 4px solid var(--accent);
+}
+h3 {
+  font-size: 1.05rem;
+  margin: 1.25rem 0 0.5rem;
+  color: var(--accent);
+}
+.card {
+  background: var(--card);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  margin-bottom: 1rem;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+.feature-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.75rem;
+  margin: 1rem 0;
+}
+.feature-item {
+  background: var(--accent-soft);
+  border-radius: var(--radius);
+  padding: 0.85rem 1rem;
+  font-size: 0.88rem;
+}
+.feature-item strong { color: var(--accent); display: block; margin-bottom: 0.2rem; }
+.feature-item span { color: var(--muted); font-size: 0.8rem; }
+.step {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 0.85rem;
+  align-items: flex-start;
+}
+.step-num {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.82rem;
+  flex-shrink: 0;
+}
+.step-content { flex: 1; }
+.step-content strong {
+  display: block;
+  margin-bottom: 0.15rem;
+  font-size: 0.95rem;
+}
+.step-content p {
+  font-size: 0.88rem;
+  color: var(--muted);
+}
+code {
+  background: var(--accent-soft);
+  color: var(--accent);
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+}
+.alert {
+  border-radius: var(--radius);
+  padding: 0.85rem 1.1rem;
+  margin: 0.85rem 0;
+  font-size: 0.88rem;
+}
+.alert-warning {
+  background: var(--warning-soft);
+  border-left: 4px solid var(--warning);
+  color: #92400e;
+}
+.alert-success {
+  background: var(--success-soft);
+  border-left: 4px solid var(--success);
+  color: #065f46;
+}
+.alert-danger {
+  background: var(--danger-soft);
+  border-left: 4px solid var(--danger);
+  color: #991b1b;
+}
+.alert-info {
+  background: var(--accent-soft);
+  border-left: 4px solid var(--accent);
+  color: #3730a3;
+}
+.role-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.75rem 0;
+  font-size: 0.88rem;
+}
+.role-table th, .role-table td {
+  border: 1px solid var(--border);
+  padding: 0.6rem 0.85rem;
+  text-align: left;
+}
+.role-table th {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 700;
+}
+.role-table td:first-child { font-weight: 600; }
+.role-table .yes { color: var(--success); font-weight: 700; }
+.role-table .no { color: var(--danger); font-weight: 700; }
+.toc {
+  background: var(--card);
+  border-radius: var(--radius);
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+.toc-title { font-weight: 700; margin-bottom: 0.5rem; font-size: 0.95rem; }
+.toc ol { padding-left: 1.5rem; }
+.toc li { font-size: 0.88rem; margin-bottom: 0.25rem; }
+.toc a { color: var(--accent); text-decoration: none; }
+.toc a:hover { text-decoration: underline; }
+.tip-box {
+  background: linear-gradient(135deg, var(--accent-soft), #ecfeff);
+  border-radius: var(--radius);
+  padding: 1rem 1.25rem;
+  margin: 0.75rem 0;
+  font-size: 0.88rem;
+  border: 1px solid #c7d2fe;
+}
+.tip-box strong { color: var(--accent); }
+hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 2rem 0;
+}
+.footer {
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.8rem;
+  margin-top: 2rem;
+  padding-top: 1rem;
+}
+</style>
+</head>
+<body>
+
+<h1>销售业绩记录工具</h1>
+<p class="subtitle">使用说明 · 功能操作手册</p>
+
+<div class="toc">
+  <div class="toc-title">目录</div>
+  <ol>
+    <li><a href="#login">登录与注册</a></li>
+    <li><a href="#shop">店铺管理</a></li>
+    <li><a href="#calendar">日历首页</a></li>
+    <li><a href="#add">添加业绩记录</a></li>
+    <li><a href="#transfer">业绩过渡与审批</a></li>
+    <li><a href="#types">提成类型管理</a></li>
+    <li><a href="#staff">员工管理</a></li>
+    <li><a href="#summary">月度总结与导出</a></li>
+    <li><a href="#roles">权限说明</a></li>
+    <li><a href="#tips">使用技巧</a></li>
+    <li><a href="#faq">常见问题</a></li>
+  </ol>
+</div>
+
+<h2 id="login">一、登录与注册</h2>
+<div class="card">
+  <h3>注册新账号</h3>
+  <div class="step">
+    <div class="step-num">1</div>
+    <div class="step-content">
+      <strong>打开网站</strong>
+      <p>在浏览器中打开部署后的网址。</p>
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-num">2</div>
+    <div class="step-content">
+      <strong>点击注册</strong>
+      <p>点击页面下方的 <strong>注册</strong> 链接，填写昵称、邮箱、密码。</p>
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-num">3</div>
+    <div class="step-content">
+      <strong>创建或加入店铺</strong>
+      <p>注册后进入店铺设置页面，选择创建新店铺或用邀请码加入已有店铺。</p>
+    </div>
+  </div>
+
+  <h3>登录已有账号</h3>
+  <p>输入邮箱和密码，点击 <strong>登录</strong> 即可。登录状态会自动保持，下次打开无需重复登录。</p>
+
+  <div class="alert alert-info">
+    <strong>忘记密码？</strong>在登录页面点击"忘记密码"，通过邮箱重置。
+  </div>
+</div>
+
+<h2 id="shop">二、店铺管理</h2>
+<div class="card">
+  <h3>创建店铺</h3>
+  <p>第一个注册的用户需要创建店铺。填写店铺名称后点击创建，系统会自动生成一个<strong>6位邀请码</strong>。</p>
+
+  <h3>邀请同事加入</h3>
+  <div class="step">
+    <div class="step-num">1</div>
+    <div class="step-content">
+      <strong>分享邀请码</strong>
+      <p>把邀请码告诉同事（口头、微信、短信均可）。</p>
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-num">2</div>
+    <div class="step-content">
+      <strong>同事注册</strong>
+      <p>同事打开同一个网址，点击注册，填写自己的昵称、邮箱、密码。</p>
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-num">3</div>
+    <div class="step-content">
+      <strong>输入邀请码</strong>
+      <p>在店铺设置页面选择 <strong>加入店铺</strong>，输入邀请码即可加入。</p>
+    </div>
+  </div>
+
+  <div class="tip-box">
+    <strong>提示：</strong>第一个创建店铺的人自动成为<strong>店长</strong>，后续加入的成员为<strong>员工</strong>。
+  </div>
+</div>
+
+<h2 id="calendar">三、日历首页</h2>
+<div class="card">
+  <p>日历首页是打开应用后看到的第一个页面，也是<strong>底部 + 按钮唯一可见</strong>的页面。</p>
+
+  <h3>日历视图</h3>
+  <p>日历以月为单位展示，每个日期格内会显示：</p>
+  <p>
+    • <strong>日期数字</strong>：今天的日期会高亮显示<br>
+    • <strong>每日收益</strong>：有业绩的日期下方会显示绿色收益金额<br>
+    • <strong>圆点标记</strong>：有业绩的日期底部有绿色小圆点
+  </p>
+
+  <h3>月份切换</h3>
+  <p>点击日历上方的 <strong>左右箭头</strong> 可切换月份。月度汇总数据（总业绩、总提成、记录数）会实时更新。</p>
+
+  <h3>查看某日详情</h3>
+  <p>点击日历中的任意日期，下方会展开该日的详细记录列表，包括每条记录的类型、金额、提成和备注。</p>
+
+  <h3>底部 + 按钮</h3>
+  <div class="alert alert-warning">
+    <strong>注意：</strong>底部中间的 <strong>+</strong> 按钮只在日历首页显示。进入其他页面（如月度总结、设置）时，+ 按钮会自动隐藏。返回首页后恢复显示。
+  </div>
+</div>
+
+<h2 id="add">四、添加业绩记录</h2>
+<div class="card">
+  <div class="step">
+    <div class="step-num">1</div>
+    <div class="step-content">
+      <strong>点击 + 按钮</strong>
+      <p>在日历首页点击底部中间的 <strong>+</strong> 按钮，弹出添加记录面板。</p>
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-num">2</div>
+    <div class="step-content">
+      <strong>选择提成类型</strong>
+      <p>在面板顶部选择业绩类型（如主机类、3pp类等），选择后展开子类列表。</p>
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-num">3</div>
+    <div class="step-content">
+      <strong>填写信息</strong>
+      <p>填写以下信息：</p>
+      <p>
+        • <strong>日期</strong>：默认今天，可修改<br>
+        • <strong>金额</strong>：销售金额<br>
+        • <strong>提成</strong>：根据子类设置自动计算，也可手动修改<br>
+        • <strong>归属人</strong>：选择业绩归属的员工<br>
+        • <strong>备注</strong>：可选，填写补充信息<br>
+        • <strong>图片</strong>：可选，最多上传3张（自动压缩）
+      </p>
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-num">4</div>
+    <div class="step-content">
+      <strong>保存记录</strong>
+      <p>点击 <strong>保存</strong> 按钮，记录立即保存到云端并显示在日历中。</p>
+    </div>
+  </div>
+
+  <div class="alert alert-success">
+    <strong>提成自动计算：</strong>如果子类设置了提成比例或固定提成，填写金额后提成会自动计算。也可以手动覆盖。
+  </div>
+</div>
+
+<h2 id="transfer">五、业绩过渡与审批</h2>
+<div class="card">
+  <p>业绩过渡是指：A 把一笔业绩记录过渡给 B（业绩归属人填写 B，过渡人填写 A）。</p>
+
+  <h3>发起过渡</h3>
+  <div class="step">
+    <div class="step-num">1</div>
+    <div class="step-content">
+      <strong>添加记录时选择归属人</strong>
+      <p>在添加记录面板，将<strong>归属人</strong>选择为其他人（不是自己）。</p>
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-num">2</div>
+    <div class="step-content">
+      <strong>自动标记为过渡</strong>
+      <p>系统会自动识别这是一条过渡记录，状态标记为<strong>待审批</strong>。</p>
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-num">3</div>
+    <div class="step-content">
+      <strong>被过渡人收到通知</strong>
+      <p>被过渡人（归属人）打开应用时，会在日历首页顶部看到<strong>黄色待审批通知栏</strong>。</p>
+    </div>
+  </div>
+
+  <h3>审批过渡记录</h3>
+  <p>被过渡人可以在通知栏中：</p>
+  <p>
+    • 点击 <strong>同意</strong>：记录变为正式记录，计入双方统计<br>
+    • 点击 <strong>拒绝</strong>：记录被删除，不计入统计
+  </p>
+
+  <h3>删除过渡记录</h3>
+  <div class="alert alert-warning">
+    <strong>权限规则：</strong>
+    <br>• <strong>过渡者（发起人）</strong>：可以删除自己发起的过渡记录
+    <br>• <strong>被过渡人</strong>：不能删除别人过渡给他的记录，只能同意或拒绝
+    <br>• <strong>店长</strong>：可以删除所有记录
+  </div>
+
+  <div class="tip-box">
+    <strong>审批状态标识：</strong>待审批的记录在日历详情中会显示"待审批"标签。已通过的记录正常显示。
+  </div>
+</div>
+
+<h2 id="types">六、提成类型管理</h2>
+<div class="card">
+  <h3>进入方式</h3>
+  <p>点击右上角 <strong>设置</strong> 图标 → <strong>提成类型管理</strong>。</p>
+
+  <h3>主分类</h3>
+  <p>系统默认有3个主分类：主机类、3pp类、音频类。可以添加、编辑或删除。</p>
+
+  <h3>子分类</h3>
+  <p>每个主分类下可以添加多个子分类，每个子分类可设置：</p>
+  <p>
+    • <strong>名称</strong>：如 PS5、Switch、AirPods 等<br>
+    • <strong>提成方式</strong>：比例提成（如5%）或固定提成（如200元）<br>
+    • <strong>提成值</strong>：比例数字或固定金额
+  </p>
+
+  <h3>添加方式</h3>
+  <div class="alert alert-info">
+    <strong>下拉选择或直接输入：</strong>在添加记录时，类型和子类支持下拉选择已有项，也可以直接输入新名称。输入不存在的分类会<strong>自动创建</strong>。
+  </div>
+</div>
+
+<h2 id="staff">七、员工管理</h2>
+<div class="card">
+  <h3>员工列表</h3>
+  <p>在 <strong>设置</strong> → <strong>员工管理</strong> 中可以查看当前店铺所有员工。</p>
+
+  <h3>添加员工</h3>
+  <p>有两种方式添加员工：</p>
+  <p>
+    • <strong>邀请注册</strong>：分享邀请码，同事注册后自动加入<br>
+    • <strong>手动添加</strong>：在员工管理中直接添加姓名（适用于不注册账号的虚拟归属人）
+  </p>
+
+  <h3>排序</h3>
+  <p>店长可以在员工管理中拖动排序，调整员工在列表中的显示顺序。</p>
+</div>
+
+<h2 id="summary">八、月度总结与导出</h2>
+<div class="card">
+  <h3>查看月度总结</h3>
+  <p>点击右上角 <strong>图表</strong> 图标进入月度总结页面，可以查看：</p>
+  <p>
+    • <strong>总业绩</strong>：当月所有记录的金额合计<br>
+    • <strong>总提成</strong>：当月所有记录的提成合计<br>
+    • <strong>记录数</strong>：当月记录总数<br>
+    • <strong>过渡统计</strong>：发出和收到的过渡业绩统计
+  </p>
+
+  <h3>图表展示</h3>
+  <p>月度总结页面会以图表形式展示：</p>
+  <p>
+    • 按员工分布的业绩柱状图<br>
+    • 按提成类型分布的饼图<br>
+    • 按日期趋势的折线图
+  </p>
+
+  <h3>筛选功能</h3>
+  <div class="alert alert-success">
+    <strong>三维度筛选：</strong>月度总结支持按<strong>归属人</strong>、<strong>大类</strong>、<strong>小类</strong>进行筛选，方便查看特定维度的数据。
+  </div>
+
+  <h3>导出数据</h3>
+  <div class="step">
+    <div class="step-num">1</div>
+    <div class="step-content">
+      <strong>点击导出按钮</strong>
+      <p>在月度总结页面点击 <strong>导出</strong> 按钮。</p>
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-num">2</div>
+    <div class="step-content">
+      <strong>下载 CSV 文件</strong>
+      <p>系统会生成 CSV 文件并自动下载，可用 Excel 或 WPS 打开查看。</p>
+    </div>
+  </div>
+</div>
+
+<h2 id="roles">九、权限说明</h2>
+<div class="card">
+  <table class="role-table">
+    <thead>
+      <tr>
+        <th>功能</th>
+        <th>店长</th>
+        <th>员工</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>添加业绩记录</td>
+        <td class="yes">可以</td>
+        <td class="yes">可以</td>
+      </tr>
+      <tr>
+        <td>查看所有员工业绩</td>
+        <td class="yes">可以</td>
+        <td class="yes">可以</td>
+      </tr>
+      <tr>
+        <td>编辑/删除自己的记录</td>
+        <td class="yes">可以</td>
+        <td class="yes">可以</td>
+      </tr>
+      <tr>
+        <td>删除他人过渡的记录</td>
+        <td class="yes">可以</td>
+        <td class="no">不可以</td>
+      </tr>
+      <tr>
+        <td>审批过渡给自己的记录</td>
+        <td class="yes">可以</td>
+        <td class="yes">可以</td>
+      </tr>
+      <tr>
+        <td>管理提成类型</td>
+        <td class="yes">可以</td>
+        <td class="yes">可以</td>
+      </tr>
+      <tr>
+        <td>管理员工（添加/删除/排序）</td>
+        <td class="yes">可以</td>
+        <td class="no">不可以</td>
+      </tr>
+      <tr>
+        <td>导出数据</td>
+        <td class="yes">可以</td>
+        <td class="yes">可以</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<h2 id="tips">十、使用技巧</h2>
+<div class="card">
+  <div class="tip-box">
+    <strong>1. 添加到主屏幕</strong><br>
+    在手机浏览器中打开网站，使用"添加到主屏幕"功能，可以像 App 一样使用，全屏体验更佳。
+  </div>
+  <div class="tip-box">
+    <strong>2. 快速添加记录</strong><br>
+    先在日历上点击目标日期，再点 + 按钮，日期会自动填入选中的日期。
+  </div>
+  <div class="tip-box">
+    <strong>3. 图片压缩</strong><br>
+    上传的图片会自动压缩到 800px 宽、JPEG 65% 质量，节省流量同时保证清晰度。
+  </div>
+  <div class="tip-box">
+    <strong>4. 离线降级</strong><br>
+    如果 Supabase 未配置或网络断开，系统会自动降级到 localStorage 本地存储模式，数据不会丢失。
+  </div>
+  <div class="tip-box">
+    <strong>5. 数据同步</strong><br>
+    多人协作时，数据实时同步到云端。每次打开应用会自动拉取最新数据。
+  </div>
+</div>
+
+<h2 id="faq">十一、常见问题</h2>
+<div class="card">
+  <h3>+ 按钮不见了？</h3>
+  <p>+ 按钮只在日历首页显示。如果当前在其他页面（月度总结、设置等），请返回首页。点击左上角返回箭头或重新打开网址即可。</p>
+
+  <h3>添加记录后日历没更新？</h3>
+  <p>下拉刷新页面即可。数据已保存到云端，刷新后会显示。</p>
+
+  <h3>同事看不到我的过渡记录？</h3>
+  <p>确认同事已登录正确账号且加入了同一个店铺（邀请码一致）。过渡记录需要被过渡人登录后才能看到通知。</p>
+
+  <h3>提成计算不对？</h3>
+  <p>检查提成类型的子类设置。比例提成的值是小数（如 0.05 表示 5%），固定提成是金额数字（如 200 表示 200 元）。</p>
+
+  <h3>忘记密码怎么办？</h3>
+  <p>在登录页面点击"忘记密码"，通过注册邮箱重置密码。如果关闭了邮箱验证，可以直接用新密码登录。</p>
+
+  <h3>数据安全吗？</h3>
+  <p>数据存储在 Supabase（基于 PostgreSQL）中，启用行级安全（RLS），只有同店成员才能查看数据。密码由 Supabase 认证系统加密存储。</p>
+
+  <h3>可以换手机使用吗？</h3>
+  <p>可以。在任何设备上打开网址，登录同一账号即可看到所有数据。数据完全云端同步。</p>
+
+  <h3>怎么修改店铺名称？</h3>
+  <p>店长可以在 设置 → 店铺信息 中修改店铺名称。</p>
+</div>
+
+<hr>
+<div class="footer">
+  <p>销售业绩记录工具 · 使用说明</p>
+  <p>如有问题请参考 <code>安装说明.html</code> 或联系开发者</p>
+</div>
+
+</body>
+</html>

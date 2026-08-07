@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>销售业绩记录工具 - 安装说明</title>
+<style>
+:root {
+  --bg: #f8f9fa;
+  --card: #ffffff;
+  --ink: #1a1a2e;
+  --muted: #6c757d;
+  --accent: #4f46e5;
+  --accent-soft: #eef2ff;
+  --success: #10b981;
+  --success-soft: #d1fae5;
+  --warning: #f59e0b;
+  --warning-soft: #fef3c7;
+  --danger: #ef4444;
+  --danger-soft: #fee2e2;
+  --border: #e5e7eb;
+  --radius: 12px;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, 'PingFang SC', 'Noto Sans CJK SC', 'Microsoft YaHei', sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  line-height: 1.7;
+  padding: 1rem;
+  max-width: 800px;
+  margin: 0 auto;
+}
+h1 {
+  font-size: 1.8rem;
+  text-align: center;
+  margin-bottom: 0.5rem;
+  background: linear-gradient(135deg, var(--accent), #06b6d4);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.subtitle {
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.95rem;
+  margin-bottom: 2rem;
+}
+h2 {
+  font-size: 1.3rem;
+  margin: 2rem 0 1rem;
+  padding-left: 0.75rem;
+  border-left: 4px solid var(--accent);
+  color: var(--ink);
+}
+h3 {
+  font-size: 1.1rem;
+  margin: 1.5rem 0 0.75rem;
+  color: var(--accent);
+}
+.card {
+  background: var(--card);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  margin-bottom: 1rem;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+.step {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  align-items: flex-start;
+}
+.step-num {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.9rem;
+  flex-shrink: 0;
+}
+.step-content { flex: 1; }
+.step-content strong {
+  display: block;
+  margin-bottom: 0.25rem;
+  font-size: 1rem;
+}
+.step-content p {
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+code {
+  background: var(--accent-soft);
+  color: var(--accent);
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+}
+pre {
+  background: #1e293b;
+  color: #e2e8f0;
+  padding: 1rem;
+  border-radius: var(--radius);
+  overflow-x: auto;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  margin: 0.75rem 0;
+}
+pre code {
+  background: none;
+  color: inherit;
+  padding: 0;
+}
+.alert {
+  border-radius: var(--radius);
+  padding: 1rem 1.25rem;
+  margin: 1rem 0;
+  font-size: 0.9rem;
+}
+.alert-warning {
+  background: var(--warning-soft);
+  border-left: 4px solid var(--warning);
+  color: #92400e;
+}
+.alert-success {
+  background: var(--success-soft);
+  border-left: 4px solid var(--success);
+  color: #065f46;
+}
+.alert-danger {
+  background: var(--danger-soft);
+  border-left: 4px solid var(--danger);
+  color: #991b1b;
+}
+.file-tree {
+  background: #1e293b;
+  color: #93c5fd;
+  padding: 1rem 1.25rem;
+  border-radius: var(--radius);
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 0.82rem;
+  line-height: 1.8;
+  overflow-x: auto;
+}
+.file-tree .dir { color: #fbbf24; font-weight: 700; }
+.file-tree .file { color: #93c5fd; }
+.file-tree .desc { color: #6b7280; }
+.toc {
+  background: var(--card);
+  border-radius: var(--radius);
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+.toc-title {
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+  font-size: 0.95rem;
+}
+.toc ol { padding-left: 1.5rem; }
+.toc li {
+  font-size: 0.88rem;
+  margin-bottom: 0.25rem;
+}
+.toc a {
+  color: var(--accent);
+  text-decoration: none;
+}
+.toc a:hover { text-decoration: underline; }
+.faq-item { margin-bottom: 1rem; }
+.faq-q {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--ink);
+  margin-bottom: 0.3rem;
+}
+.faq-a {
+  font-size: 0.88rem;
+  color: var(--muted);
+  padding-left: 1rem;
+  border-left: 3px solid var(--border);
+}
+hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 2rem 0;
+}
+.footer {
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.8rem;
+  margin-top: 2rem;
+  padding-top: 1rem;
+}
+</style>
+</head>
+<body>
+
+<h1>销售业绩记录工具</h1>
+<p class="subtitle">安装说明 · 完整部署指南</p>
+
+<div class="toc">
+  <div class="toc-title">目录</div>
+  <ol>
+    <li><a href="#overview">概述与功能介绍</a></li>
+    <li><a href="#files">文件清单</a></li>
+    <li><a href="#supabase">注册 Supabase 并创建项目</a></li>
+    <li><a href="#database">初始化数据库</a></li>
+    <li><a href="#config">修改代码配置</a></li>
+    <li><a href="#auth">配置邮箱登录</a></li>
+    <li><a href="#deploy">部署到 GitHub + Netlify</a></li>
+    <li><a href="#start">首次使用</a></li>
+    <li><a href="#update">后续更新代码</a></li>
+    <li><a href="#faq">常见问题</a></li>
+  </ol>
+</div>
+
+<h2 id="overview">一、概述与功能介绍</h2>
+<div class="card">
+  <p>本工具是一个<strong>多用户销售业绩记录系统</strong>，基于 Supabase 云端数据库，支持：</p>
+  <p>
+    • 多账号协作（店长 + 员工，1~5人）<br>
+    • 业绩过渡审批功能（过渡者发起，被过渡人审批）<br>
+    • 云端数据实时同步<br>
+    • 月度总结与数据导出（CSV）<br>
+    • 日历视图展示每日收益<br>
+    • 提成类型管理（主分类 + 子分类）<br>
+    • 业绩图片附件（每条最多3张）
+  </p>
+  <div class="alert alert-success">
+    <strong>技术栈：</strong>纯前端 HTML + JavaScript + Supabase（PostgreSQL），无需服务器，部署到 Netlify 即可使用。
+  </div>
+</div>
+
+<h2 id="files">二、文件清单</h2>
+<div class="card">
+  <p>解压 <code>sales-tracker-完整版.zip</code> 后，文件结构如下：</p>
+  <div class="file-tree">
+<span class="dir">sales-tracker/</span>
+├── <span class="file">index.html</span>              <span class="desc">← 网站首页（Netlify 入口文件）</span>
+├── <span class="file">sales-tracker.html</span>      <span class="desc">← 同 index.html（备用）</span>
+├── <span class="file">_headers</span>                <span class="desc">← Netlify 缓存配置</span>
+├── <span class="file">schema.sql</span>              <span class="desc">← 数据库初始化脚本（首次安装必须运行）</span>
+├── <span class="file">update-v2.sql</span>           <span class="desc">← 更新脚本 v2（员工权限）</span>
+├── <span class="file">update-v3.sql</span>           <span class="desc">← 更新脚本 v3（过渡人字段）</span>
+├── <span class="file">update-v4.sql</span>           <span class="desc">← 更新脚本 v4（过渡审批功能）</span>
+├── <span class="file">安装说明.html</span>           <span class="desc">← 本文档</span>
+├── <span class="file">使用说明.html</span>           <span class="desc">← 使用手册</span>
+├── <span class="file">部署指南.html</span>           <span class="desc">← 图文部署指南</span>
+├── <span class="dir">_shared/</span>
+│   ├── <span class="dir">fonts/</span>               <span class="desc">← 字体文件</span>
+│   └── <span class="dir">js/</span>
+│       └── <span class="file">echarts.min.js</span>  <span class="desc">← 图表库</span>
+└── <span class="dir">assets/</span>
+    ├── <span class="file">config.js</span>           <span class="desc">← Supabase 配置文件（需要修改！）</span>
+    ├── <span class="file">data-layer.js</span>       <span class="desc">← 数据层逻辑</span>
+    ├── <span class="file">app.js</span>              <span class="desc">← 应用主逻辑</span>
+    ├── <span class="file">supabase-client.js</span>  <span class="desc">← Supabase 客户端</span>
+    └── <span class="file">supabase-js.min.js</span>  <span class="desc">← Supabase SDK</span>
+  </div>
+  <div class="alert alert-warning">
+    <strong>重要：</strong>首次安装时，<code>schema.sql</code> 和 <code>update-v4.sql</code> 必须运行，其余更新脚本可跳过（新项目已包含全部字段）。
+  </div>
+</div>
+
+<h2 id="supabase">三、注册 Supabase 并创建项目</h2>
+<div class="card">
+  <div class="step">
+    <div class="step-num">1</div>
+    <div class="step-content">
+      <strong>注册账号</strong>
+      <p>打开 <code>https://supabase.com</code>，点击右上角 <strong>Start your project</strong>，用 GitHub 账号或邮箱注册。</p>
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-num">2</div>
+    <div class="step-content">
+      <strong>创建新项目</strong>
+      <p>登录后点击 <strong>New Project</strong>，填写：</p>
+      <p>• <strong>Name</strong>：<code>sales-tracker</code>（可自定义）<br>
+         • <strong>Database Password</strong>：设置密码并记录下来<br>
+         • <strong>Region</strong>：选择 <code>Southeast Asia (Singapore)</code> 或最近的区域</p>
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-num">3</div>
+    <div class="step-content">
+      <strong>等待初始化</strong>
+      <p>点击 <strong>Create new project</strong>，等待 1-2 分钟项目初始化完成。</p>
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-num">4</div>
+    <div class="step-content">
+      <strong>获取 API 配置信息</strong>
+      <p>进入项目后，点击左侧栏 <strong>Settings</strong>（齿轮图标）→ <strong>API</strong>，复制以下两个值：</p>
+      <p>• <strong>Project URL</strong>：形如 <code>https://xxxxx.supabase.co</code><br>
+         • <strong>anon public key</strong>：一长串字母数字</p>
+    </div>
+  </div>
+</div>
+
+<h2 id="database">四、初始化数据库</h2>
+<div class="card">
+  <div class="step">
+    <div class="step-num">1</div>
+    <div class="step-content">
+      <strong>打开 SQL Editor</strong>
+      <p>在 Supabase Dashboard 左侧栏点击 <strong>SQL Editor</strong>，点击 <strong>New query</strong>。</p>
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-num">2</div>
+    <div class="step-content">
+      <strong>运行 schema.sql</strong>
+      <p>打开本工具的 <code>schema.sql</code> 文件，复制全部内容粘贴到编辑器，点击 <strong>Run</strong>。</p>
+      <p>看到绿色成功提示后，说明数据库表已创建完成。</p>
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-num">3</div>
+    <div class="step-content">
+      <strong>运行 update-v4.sql</strong>
+      <p>再点 <strong>New query</strong>，打开 <code>update-v4.sql</code> 文件，复制全部内容粘贴运行。</p>
+      <p>这一步添加过渡审批功能所需的 <code>transfer_status</code> 字段。</p>
+    </div>
+  </div>
+  <div class="alert alert-success">
+    <strong>提示：</strong>如果你是新项目且 <code>schema.sql</code> 中已包含 <code>transfer_status</code> 字段，则 <code>update-v4.sql</code> 可以跳过。但运行也不会报错，建议运行以确保完整。
+  </div>
+</div>
+
+<h2 id="config">五、修改代码配置</h2>
+<div class="card">
+  <p>用记事本或代码编辑器打开 <code>assets/config.js</code> 文件，将内容替换为你的新项目信息：</p>
+  <pre><code>var SUPABASE_CONFIG = {
+  url: 'https://你的项目地址.supabase.co',
+  anonKey: '你的anon_public_key'
+};
+
+function isSupabaseConfigured() {
+  return SUPABASE_CONFIG.url && SUPABASE_CONFIG.anonKey &&
+    SUPABASE_CONFIG.url.indexOf('supabase.co') >= 0;
+}</code></pre>
+  <div class="alert alert-danger">
+    <strong>注意：</strong>anon key 是公开密钥，配合 RLS 策略使用是安全的。但<strong>绝不要</strong>在这里放入 <code>service_role key</code>！
+  </div>
+  <p>修改完成后保存文件。</p>
+</div>
+
+<h2 id="auth">六、配置邮箱登录</h2>
+<div class="card">
+  <div class="step">
+    <div class="step-num">1</div>
+    <div class="step-content">
+      <strong>确认 Email 登录已启用</strong>
+      <p>点击左侧栏 <strong>Authentication</strong> → <strong>Providers</strong>，确认 <strong>Email</strong> 已启用（默认启用）。</p>
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-num">2</div>
+    <div class="step-content">
+      <strong>关闭邮箱验证（推荐）</strong>
+      <p>在 <strong>Authentication</strong> → <strong>Settings</strong> 中，关闭 <strong>"Confirm email"</strong>。这样注册后无需邮箱验证即可直接登录，方便快捷。</p>
+    </div>
+  </div>
+</div>
+
+<h2 id="deploy">七、部署到 GitHub + Netlify</h2>
+<div class="card">
+  <h3>7.1 上传到 GitHub</h3>
+  <div class="step">
+    <div class="step-num">1</div>
+    <div class="step-content">
+      <strong>创建仓库</strong>
+      <p>打开 <code>https://github.com</code> 登录，点击右上角 <strong>+</strong> → <strong>New repository</strong>。</p>
+      <p>填写 <strong>Repository name</strong>：<code>sales-tracker</code>，选择 <strong>Private</strong>（推荐私有），点击 <strong>Create repository</strong>。</p>
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-num">2</div>
+    <div class="step-content">
+      <strong>上传文件</strong>
+      <p>在仓库页面点击 <strong>uploading an existing file</strong>，把 <code>sales-tracker</code> 文件夹里的<strong>所有文件和文件夹</strong>拖进去。</p>
+      <p>点击 <strong>Commit changes</strong> 提交。</p>
+    </div>
+  </div>
+
+  <h3>7.2 用 Netlify 部署</h3>
+  <div class="step">
+    <div class="step-num">1</div>
+    <div class="step-content">
+      <strong>登录 Netlify</strong>
+      <p>打开 <code>https://app.netlify.com</code>，用 GitHub 账号登录。</p>
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-num">2</div>
+    <div class="step-content">
+      <strong>导入项目</strong>
+      <p>点击 <strong>Add new site</strong> → <strong>Import an existing project</strong>，选择 <strong>GitHub</strong>，找到 <code>sales-tracker</code> 仓库。</p>
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-num">3</div>
+    <div class="step-content">
+      <strong>配置部署</strong>
+      <p>设置如下：</p>
+      <p>• <strong>Build command</strong>：留空（不填）<br>
+         • <strong>Publish directory</strong>：<code>.</code>（一个点，表示根目录）</p>
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-num">4</div>
+    <div class="step-content">
+      <strong>部署完成</strong>
+      <p>点击 <strong>Deploy site</strong>，等待 1-2 分钟。部署成功后会得到一个网址，如 <code>https://xxx-xxx-xxx.netlify.app</code>。</p>
+    </div>
+  </div>
+  <div class="alert alert-success">
+    <strong>完成！</strong>现在可以打开这个网址开始使用了。
+  </div>
+</div>
+
+<h2 id="start">八、首次使用</h2>
+<div class="card">
+  <div class="step">
+    <div class="step-num">1</div>
+    <div class="step-content">
+      <strong>注册账号</strong>
+      <p>打开部署后的网址，点击 <strong>注册</strong>，填写昵称、邮箱、密码。</p>
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-num">2</div>
+    <div class="step-content">
+      <strong>创建店铺</strong>
+      <p>首次注册会进入 <strong>店铺设置</strong> 页面，选择 <strong>创建店铺</strong>，填写店铺名称。第一个注册的人自动成为<strong>店长</strong>。</p>
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-num">3</div>
+    <div class="step-content">
+      <strong>获取邀请码</strong>
+      <p>创建成功后会显示 <strong>邀请码</strong>（6位字母数字）。把邀请码分享给同事，他们注册后选择 <strong>加入店铺</strong> 即可。</p>
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-num">4</div>
+    <div class="step-content">
+      <strong>设置提成类型</strong>
+      <p>进入 <strong>设置</strong> → <strong>提成类型管理</strong>，添加你的提成主分类和子分类（如：主机类/PS5、提成比例5%等）。</p>
+    </div>
+  </div>
+</div>
+
+<h2 id="update">九、后续更新代码</h2>
+<div class="card">
+  <p>以后需要更新代码时：</p>
+  <div class="step">
+    <div class="step-num">1</div>
+    <div class="step-content">
+      <strong>修改本地文件</strong>
+      <p>在本地修改代码文件。</p>
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-num">2</div>
+    <div class="step-content">
+      <strong>上传到 GitHub</strong>
+      <p>在 GitHub 仓库中替换对应文件（点击文件 → 编辑 → 粘贴新内容 → Commit）。</p>
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-num">3</div>
+    <div class="step-content">
+      <strong>自动部署</strong>
+      <p>Netlify 会自动检测 GitHub 变更并重新部署，通常 1-2 分钟内更新生效。</p>
+    </div>
+  </div>
+</div>
+
+<h2 id="faq">十、常见问题</h2>
+<div class="card">
+  <div class="faq-item">
+    <div class="faq-q">Q: 注册后看不到登录页面？</div>
+    <div class="faq-a">检查 <code>config.js</code> 中的 URL 和 Key 是否正确填写。URL 必须以 <code>https://</code> 开头，以 <code>.supabase.co</code> 结尾。</div>
+  </div>
+  <div class="faq-item">
+    <div class="faq-q">Q: 提示 "Supabase SDK 加载失败"？</div>
+    <div class="faq-a">可能是网络问题，刷新页面重试。确保 <code>assets/supabase-js.min.js</code> 文件存在且未损坏。</div>
+  </div>
+  <div class="faq-item">
+    <div class="faq-q">Q: 数据库报错 "relation does not exist"？</div>
+    <div class="faq-a">说明 <code>schema.sql</code> 没有运行成功。重新在 SQL Editor 中粘贴运行，注意看是否有红色错误提示。</div>
+  </div>
+  <div class="faq-item">
+    <div class="faq-q">Q: 过渡审批功能不生效？</div>
+    <div class="faq-a">确认已在 Supabase 中运行了 <code>update-v4.sql</code>，添加了 <code>transfer_status</code> 字段和对应的 RLS 策略。</div>
+  </div>
+  <div class="faq-item">
+    <div class="faq-q">Q: Netlify 部署后显示 "Page not found"？</div>
+    <div class="faq-a">确保 Publish directory 设置为 <code>.</code>（根目录），且仓库中有 <code>index.html</code> 文件。</div>
+  </div>
+  <div class="faq-item">
+    <div class="faq-q">Q: 注册时提示 "User already registered"？</div>
+    <div class="faq-a">说明该邮箱已注册过，直接用该邮箱登录即可。</div>
+  </div>
+  <div class="faq-item">
+    <div class="faq-q">Q: 数据可以导出吗？</div>
+    <div class="faq-a">可以。在月度总结页面点击导出按钮，可将当月数据导出为 CSV 文件。</div>
+  </div>
+</div>
+
+<hr>
+<div class="footer">
+  <p>销售业绩记录工具 · 安装说明</p>
+  <p>如有问题请参考 <code>部署指南.html</code> 或联系开发者</p>
+</div>
+
+</body>
+</html>

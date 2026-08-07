@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>多账号部署指南 - 销售业绩记录工具</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, 'PingFang SC', 'Noto Sans CJK SC', 'Microsoft YaHei', sans-serif;
+  background: #f5f5f7;
+  color: #1a1a2e;
+  line-height: 1.7;
+  padding: 2rem 1rem;
+}
+.container {
+  max-width: 720px;
+  margin: 0 auto;
+  background: #fff;
+  border-radius: 20px;
+  padding: 2.5rem 2rem;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+}
+h1 {
+  font-size: 1.6rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+  color: #4f46e5;
+}
+.subtitle {
+  color: #8e8e93;
+  font-size: 0.9rem;
+  margin-bottom: 2rem;
+}
+h2 {
+  font-size: 1.2rem;
+  font-weight: 700;
+  margin-top: 2.5rem;
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid #eef2ff;
+  color: #1a1a2e;
+}
+h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-top: 1.5rem;
+  margin-bottom: 0.6rem;
+  color: #4f46e5;
+}
+p { margin-bottom: 0.8rem; font-size: 0.92rem; }
+ol, ul { margin-left: 1.5rem; margin-bottom: 1rem; }
+li { margin-bottom: 0.4rem; font-size: 0.92rem; }
+code {
+  background: #f5f5f7;
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  font-family: 'SF Mono', 'JetBrains Mono', monospace;
+  font-size: 0.85rem;
+  color: #4f46e5;
+}
+pre {
+  background: #1a1a2e;
+  color: #e0e0e0;
+  padding: 1rem 1.2rem;
+  border-radius: 12px;
+  overflow-x: auto;
+  margin: 0.8rem 0 1.2rem;
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+pre code {
+  background: none;
+  color: inherit;
+  padding: 0;
+}
+.note {
+  background: #ecfeff;
+  border-left: 4px solid #06b6d4;
+  padding: 0.8rem 1rem;
+  border-radius: 8px;
+  margin: 1rem 0;
+  font-size: 0.88rem;
+}
+.warning {
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 0.8rem 1rem;
+  border-radius: 8px;
+  margin: 1rem 0;
+  font-size: 0.88rem;
+}
+.success {
+  background: #d1fae5;
+  border-left: 4px solid #10b981;
+  padding: 0.8rem 1rem;
+  border-radius: 8px;
+  margin: 1rem 0;
+  font-size: 0.88rem;
+}
+.step-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: #4f46e5;
+  color: #fff;
+  border-radius: 50%;
+  font-size: 0.85rem;
+  font-weight: 700;
+  margin-right: 0.5rem;
+  flex-shrink: 0;
+}
+.step-row {
+  display: flex;
+  align-items: flex-start;
+  margin-bottom: 0.5rem;
+}
+.step-row .step-content {
+  flex: 1;
+  padding-top: 0.2rem;
+}
+.toc {
+  background: #f5f5f7;
+  border-radius: 12px;
+  padding: 1rem 1.5rem;
+  margin-bottom: 2rem;
+}
+.toc-title {
+  font-weight: 700;
+  font-size: 0.9rem;
+  margin-bottom: 0.5rem;
+}
+.toc a {
+  color: #4f46e5;
+  text-decoration: none;
+  font-size: 0.88rem;
+  display: block;
+  padding: 0.2rem 0;
+}
+.toc a:hover { text-decoration: underline; }
+hr {
+  border: none;
+  border-top: 1px solid #e5e5ea;
+  margin: 2rem 0;
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>多账号部署指南</h1>
+  <p class="subtitle">销售业绩记录工具 · Supabase 云端版 · 支持多用户协作</p>
+
+  <div class="toc">
+    <div class="toc-title">目录</div>
+    <a href="#overview">一、功能概览</a>
+    <a href="#supabase">二、创建 Supabase 项目</a>
+    <a href="#database">三、初始化数据库</a>
+    <a href="#config">四、配置连接信息</a>
+    <a href="#deploy">五、部署到线上</a>
+    <a href="#usage">六、使用流程</a>
+    <a href="#faq">七、常见问题</a>
+  </div>
+
+  <h2 id="overview">一、功能概览</h2>
+  <p>升级后的版本支持多账号协作使用：</p>
+  <ul>
+    <li><strong>多用户登录</strong>：每个店员注册独立账号，邮箱+密码登录</li>
+    <li><strong>店铺管理</strong>：第一个注册的人创建店铺并成为管理员，自动获得 6 位邀请码</li>
+    <li><strong>邀请加入</strong>：其他店员通过邀请码加入同一店铺</li>
+    <li><strong>角色权限</strong>：管理员可为任意人员录入业绩、管理员工；普通员工只能以自己名义录入</li>
+    <li><strong>全店共享</strong>：所有同店成员共享业绩数据，管理员可查看全店明细与汇总</li>
+    <li><strong>数据迁移</strong>：首次登录时自动检测本地历史数据，一键迁移到云端</li>
+    <li><strong>向下兼容</strong>：未配置 Supabase 时自动降级为单机 localStorage 模式</li>
+  </ul>
+
+  <h2 id="supabase">二、创建 Supabase 项目</h2>
+  <div class="step-row">
+    <span class="step-num">1</span>
+    <div class="step-content">访问 <a href="https://supabase.com" target="_blank">supabase.com</a>，点击「Start your project」注册（可用 GitHub 账号登录）</div>
+  </div>
+  <div class="step-row">
+    <span class="step-num">2</span>
+    <div class="step-content">点击「New Project」，填写项目名称（如 <code>sales-tracker</code>），设置数据库密码（请牢记）</div>
+  </div>
+  <div class="step-row">
+    <span class="step-num">3</span>
+    <div class="step-content">选择离你最近的区域（如 Northeast Asia - Tokyo），点击「Create new project」</div>
+  </div>
+  <div class="step-row">
+    <span class="step-num">4</span>
+    <div class="step-content">等待 1-2 分钟，项目创建完成后进入 Dashboard</div>
+  </div>
+
+  <div class="note">
+    Supabase 免费版包含：500MB 数据库存储、50MB 文件存储、50000 月活用户，完全够用。
+  </div>
+
+  <h2 id="database">三、初始化数据库</h2>
+  <div class="step-row">
+    <span class="step-num">1</span>
+    <div class="step-content">在 Supabase Dashboard 左侧菜单点击「SQL Editor」</div>
+  </div>
+  <div class="step-row">
+    <span class="step-num">2</span>
+    <div class="step-content">点击「New query」，打开项目文件夹中的 <code>schema.sql</code> 文件，复制全部内容粘贴到编辑器</div>
+  </div>
+  <div class="step-row">
+    <span class="step-num">3</span>
+    <div class="step-content">点击「Run」按钮执行，看到 <code>Success. No rows returned</code> 即表示成功</div>
+  </div>
+
+  <div class="warning">
+    这一步会创建所有数据表、安全策略和自动触发器。只需执行一次，请勿重复执行。
+  </div>
+
+  <h3>验证 Authentication 设置</h3>
+  <div class="step-row">
+    <span class="step-num">4</span>
+    <div class="step-content">进入 Dashboard 左侧点击「Authentication」，在上方标签页中选择「Providers」（或「Sign In / Providers」），确认 Email 已启用（开关为绿色）</div>
+  </div>
+  <div class="step-row">
+    <span class="step-num">5</span>
+    <div class="step-content">（可选）在同一个 Email Provider 页面中，找到「Confirm email」开关，关闭它可跳过邮箱验证步骤，注册后直接登录，方便快速测试</div>
+  </div>
+
+  <h2 id="config">四、配置连接信息</h2>
+  <div class="step-row">
+    <span class="step-num">1</span>
+    <div class="step-content">在 Dashboard 左侧点击「Settings → API」（或 Project Settings → API）</div>
+  </div>
+  <div class="step-row">
+    <span class="step-num">2</span>
+    <div class="step-content">找到以下两项并复制：
+      <ul>
+        <li><strong>Project URL</strong>：形如 <code>https://abcdefgh.supabase.co</code></li>
+        <li><strong>anon public key</strong>：一长串以 <code>eyJ</code> 开头的字符串</li>
+      </ul>
+    </div>
+  </div>
+  <div class="step-row">
+    <span class="step-num">3</span>
+    <div class="step-content">打开 <code>assets/config.js</code>，填入你的信息：</div>
+  </div>
+
+  <pre><code>var SUPABASE_CONFIG = {
+  url: 'https://abcdefgh.supabase.co',   // ← 替换为你的 Project URL
+  anonKey: 'eyJhbGciOiJIUzI1NiIs...'     // ← 替换为你的 anon key
+};</code></pre>
+
+  <div class="success">
+    配置完成！现在可以在浏览器中打开 sales-tracker.html 测试。如果是空白页或降级为单机模式，请检查 URL 和 key 是否正确。
+  </div>
+
+  <h2 id="deploy">五、部署到线上</h2>
+
+  <h3>方式一：Netlify Drop（最快，推荐）</h3>
+  <ol>
+    <li>将整个 <code>sales-tracker</code> 文件夹打包为 zip</li>
+    <li>访问 <a href="https://app.netlify.com/drop" target="_blank">app.netlify.com/drop</a></li>
+    <li>拖拽 zip 文件到页面中，几秒后获得 <code>xxx.netlify.app</code> 网址</li>
+    <li>将网址分享给店员即可使用</li>
+  </ol>
+
+  <h3>方式二：Vercel</h3>
+  <ol>
+    <li>访问 <a href="https://vercel.com" target="_blank">vercel.com</a> 并登录</li>
+    <li>点击「New Project」，上传 sales-tracker 文件夹</li>
+    <li>Framework Preset 选「Other」，点击 Deploy</li>
+    <li>获得 <code>xxx.vercel.app</code> 网址</li>
+  </ol>
+
+  <h3>方式三：GitHub Pages</h3>
+  <ol>
+    <li>在 GitHub 创建新仓库，上传 sales-tracker 全部文件</li>
+    <li>进入仓库 Settings → Pages</li>
+    <li>Source 选「main」分支，保存后等待 1 分钟</li>
+    <li>获得 <code>username.github.io/repo-name</code> 网址</li>
+  </ol>
+
+  <div class="note">
+    无论哪种方式，都是纯静态文件部署，无需服务器。数据全部存在 Supabase 云端数据库中。
+  </div>
+
+  <h2 id="usage">六、使用流程</h2>
+
+  <h3>管理员（第一个注册的人）</h3>
+  <ol>
+    <li>打开应用网址，点击「注册」</li>
+    <li>输入昵称、邮箱、密码，完成注册</li>
+    <li>进入店铺设置页面，选择「创建店铺」</li>
+    <li>输入店铺名称和你的昵称，点击创建</li>
+    <li>进入主页后，点击右上角「提成类型」图标，可以看到<strong>店铺邀请码</strong></li>
+    <li>将邀请码分享给其他店员</li>
+    <li>如果之前有本地数据，系统会提示是否迁移到云端</li>
+  </ol>
+
+  <h3>普通员工（被邀请的人）</h3>
+  <ol>
+    <li>打开同一个应用网址，点击「注册」</li>
+    <li>输入昵称、邮箱、密码，完成注册</li>
+    <li>进入店铺设置页面，选择「加入店铺」</li>
+    <li>输入管理员给的 6 位邀请码和你的昵称，点击加入</li>
+    <li>进入主页后即可开始记录业绩</li>
+  </ol>
+
+  <h3>角色权限说明</h3>
+  <table style="width:100%; border-collapse: collapse; font-size: 0.88rem; margin: 1rem 0;">
+    <thead>
+      <tr style="background: #eef2ff;">
+        <th style="padding: 0.6rem; text-align: left; border-radius: 8px 0 0 8px;">功能</th>
+        <th style="padding: 0.6rem; text-align: center;">管理员</th>
+        <th style="padding: 0.6rem; text-align: center; border-radius: 0 8px 8px 0;">普通员工</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td style="padding: 0.5rem; border-bottom: 1px solid #e5e5ea;">查看全店业绩</td><td style="text-align:center;">✓</td><td style="text-align:center;">仅自己的</td></tr>
+      <tr><td style="padding: 0.5rem; border-bottom: 1px solid #e5e5ea;">查看月度汇总</td><td style="text-align:center;">全店</td><td style="text-align:center;">仅自己的</td></tr>
+      <tr><td style="padding: 0.5rem; border-bottom: 1px solid #e5e5ea;">添加业绩归属人</td><td style="text-align:center;">✓</td><td style="text-align:center;">✓</td></tr>
+      <tr><td style="padding: 0.5rem; border-bottom: 1px solid #e5e5ea;">为他人录入业绩</td><td style="text-align:center;">✓</td><td style="text-align:center;">✓</td></tr>
+      <tr><td style="padding: 0.5rem; border-bottom: 1px solid #e5e5ea;">管理提成类型</td><td style="text-align:center;">✓</td><td style="text-align:center;">✓</td></tr>
+      <tr><td style="padding: 0.5rem;">删除记录</td><td style="text-align:center;">任意</td><td style="text-align:center;">仅自己</td></tr>
+    </tbody>
+  </table>
+
+  <h2 id="faq">七、常见问题</h2>
+
+  <h3>Q: 注册后提示"请检查邮箱验证"</h3>
+  <p>这是 Supabase 默认的安全设置。你可以去邮箱点击验证链接，或者到 Supabase Dashboard → Authentication → Settings 中关闭「Confirm email」选项。</p>
+
+  <h3>Q: 忘记密码怎么办？</h3>
+  <p>管理员可在 Supabase Dashboard → Authentication → Users 中直接重置任意用户的密码。</p>
+
+  <h3>Q: 如何添加更多管理员？</h3>
+  <p>在 Supabase Dashboard → Table Editor → profiles 表中，将目标用户的 <code>role</code> 字段从 <code>staff</code> 改为 <code>manager</code> 即可。</p>
+
+  <h3>Q: 不想用多账号，还能单机使用吗？</h3>
+  <p>可以。只要 <code>config.js</code> 中的 url 和 anonKey 为空，应用会自动降级为 localStorage 单机模式，数据保存在本地浏览器中。</p>
+
+  <h3>Q: 数据安全吗？</h3>
+  <p>Supabase 使用 PostgreSQL 行级安全（RLS）策略，每个用户只能访问自己店铺的数据。anon key 是公开密钥，配合 RLS 使用是安全的，但绝不要在代码中放入 service_role key。</p>
+
+  <h3>Q: 免费额度够用吗？</h3>
+  <p>对于 1-5 人的小型店铺，Supabase 免费版完全够用。500MB 数据库可存储数十万条记录，50000 月活用户远超需求。</p>
+
+  <hr>
+  <p style="text-align: center; color: #8e8e93; font-size: 0.8rem;">销售业绩记录工具 · 多账号协作版<br>如有问题请随时询问</p>
+</div>
+</body>
+</html>
