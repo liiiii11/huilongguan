@@ -7,14 +7,12 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <title>销售业绩记录</title>
+<!-- Google Fonts CDN -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Outfit:wght@400;700&family=Work+Sans:wght@400;700&display=swap" rel="stylesheet">
 <style>
-/* ===== Fonts ===== */
-@font-face { font-family: 'Outfit'; src: url('./_shared/fonts/Outfit-Regular.ttf') format('truetype'); font-weight: 400; font-display: swap; }
-@font-face { font-family: 'Outfit'; src: url('./_shared/fonts/Outfit-Bold.ttf') format('truetype'); font-weight: 700; font-display: swap; }
-@font-face { font-family: 'WorkSans'; src: url('./_shared/fonts/WorkSans-Regular.ttf') format('truetype'); font-weight: 400; font-display: swap; }
-@font-face { font-family: 'WorkSans'; src: url('./_shared/fonts/WorkSans-Bold.ttf') format('truetype'); font-weight: 700; font-display: swap; }
-@font-face { font-family: 'JetBrainsMono'; src: url('./_shared/fonts/JetBrainsMono-Regular.ttf') format('truetype'); font-weight: 400; font-display: swap; }
-@font-face { font-family: 'JetBrainsMono'; src: url('./_shared/fonts/JetBrainsMono-Bold.ttf') format('truetype'); font-weight: 700; font-display: swap; }
+/* ===== Fonts (loaded via Google Fonts CDN) ===== */
 
 /* ===== CSS Variables ===== */
 :root {
@@ -42,7 +40,7 @@
 * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html { font-size: 16px; }
 body {
-  font-family: 'WorkSans', -apple-system, 'PingFang SC', 'Noto Sans CJK SC', 'Microsoft YaHei', sans-serif;
+  font-family: 'Work Sans', -apple-system, 'PingFang SC', 'Noto Sans CJK SC', 'Microsoft YaHei', sans-serif;
   background: var(--bg);
   color: var(--ink);
   line-height: 1.5;
@@ -138,7 +136,7 @@ body {
 }
 .month-stat .label { font-size: 0.7rem; color: var(--muted); }
 .month-stat .value {
-  font-family: 'JetBrainsMono', monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 1rem;
   font-weight: 700;
   color: var(--ink);
@@ -206,7 +204,7 @@ body {
 .cal-cell.weekend .cal-day-num { color: var(--danger); }
 .cal-cell.today.weekend .cal-day-num { color: #fff; }
 .cal-earning {
-  font-family: 'JetBrainsMono', monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 0.62rem;
   font-weight: 700;
   color: var(--success);
@@ -247,7 +245,7 @@ body {
 .day-detail-title { font-size: 0.95rem; font-weight: 700; }
 .day-detail-sub { font-size: 0.75rem; color: var(--muted); }
 .day-detail-amount {
-  font-family: 'JetBrainsMono', monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 1.3rem;
   font-weight: 700;
   color: var(--accent);
@@ -273,7 +271,7 @@ body {
 .ddi-type { font-size: 0.85rem; font-weight: 600; }
 .ddi-note { font-size: 0.72rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ddi-amount {
-  font-family: 'JetBrainsMono', monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 0.88rem;
   font-weight: 700;
   text-align: right;
@@ -486,13 +484,13 @@ body {
 }
 .amount-display .label { font-size: 0.78rem; color: var(--muted); }
 .amount-display .value {
-  font-family: 'JetBrainsMono', monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 1.3rem;
   font-weight: 700;
   color: var(--accent);
 }
 .amount-display .comm-value {
-  font-family: 'JetBrainsMono', monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 0.9rem;
   font-weight: 700;
   color: var(--success);
@@ -597,7 +595,7 @@ body {
 }
 .summary-stat .label { font-size: 0.72rem; color: var(--muted); }
 .summary-stat .value {
-  font-family: 'JetBrainsMono', monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 1.25rem;
   font-weight: 700;
   margin-top: 0.2rem;
@@ -636,7 +634,7 @@ body {
   padding: 0.6rem 0.5rem;
   border-bottom: 1px solid var(--rule);
 }
-.summary-table td.num { font-family: 'JetBrainsMono', monospace; font-weight: 600; text-align: right; }
+.summary-table td.num { font-family: 'JetBrains Mono', monospace; font-weight: 600; text-align: right; }
 .summary-table tr:last-child td { border-bottom: none; }
 .summary-table tfoot td { font-weight: 700; border-top: 2px solid var(--rule); }
 
@@ -1057,7 +1055,7 @@ body {
   font-size: 0.78rem;
   color: var(--accent);
   font-weight: 600;
-  font-family: 'JetBrainsMono', monospace;
+  font-family: 'JetBrains Mono', monospace;
 }
 .subtype-item-actions {
   display: flex;
@@ -1204,7 +1202,7 @@ body {
   margin-top: 0.1rem;
 }
 .pending-item-amount {
-  font-family: 'JetBrainsMono', monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 0.78rem;
   font-weight: 600;
   color: var(--ink);
@@ -1407,7 +1405,7 @@ body {
   color: var(--muted);
 }
 .setup-code-box .code {
-  font-family: 'JetBrainsMono', monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 1.8rem;
   font-weight: 700;
   color: var(--accent);
@@ -1816,9 +1814,9 @@ body {
 </div>
 
 <!-- Scripts -->
-<script src="assets/supabase-js.min.js?v=5"></script>
-<script src="./_shared/js/echarts.min.js?v=5"></script>
-<script src="assets/config.js?v=5"></script>
+<script src="assets/supabase-js.min.js?v=6"></script>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+<script src="assets/config.js?v=6"></script>
 <script>
 // 检查 Supabase SDK 是否加载成功
 if (typeof supabase === 'undefined') {
@@ -1839,8 +1837,8 @@ if (typeof SUPABASE_CONFIG !== 'undefined' && (!SUPABASE_CONFIG.url || !SUPABASE
   });
 }
 </script>
-<script src="assets/supabase-client.js?v=5"></script>
-<script src="assets/data-layer.js?v=5"></script>
-<script src="assets/app.js?v=5"></script>
+<script src="assets/supabase-client.js?v=6"></script>
+<script src="assets/data-layer.js?v=6"></script>
+<script src="assets/app.js?v=6"></script>
 </body>
 </html>
