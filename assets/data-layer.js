@@ -339,12 +339,60 @@ var DataLayer = (function () {
       created_by: cache.profile.user_id
     };
 
+    // ===== v5.4-fix P0-3: 多级降级尝试 + 全局警告 =====
+    // 尝试顺序：完整字段 → 去掉 transfer_status → 去掉 transfer_from → 两者都去掉
+    var missingCols = [];
     var result = await SupaAuth.getClient().from('records').insert(insertData).select('*').single();
 
-    // 如果 transfer_status 列不存在，重试不带该字段
-    if (result.error && result.error.message && result.error.message.indexOf('transfer_status') >= 0) {
-      delete insertData.transfer_status;
-      result = await SupaAuth.getClient().from('records').insert(insertData).select('*').single();
+    if (result.error && result.error.message) {
+      var msg = result.error.message;
+      var needRetry = false;
+      if (msg.indexOf('transfer_status') >= 0) {
+        delete insertData.transfer_status;
+        missingCols.push('transfer_status');
+        needRetry = true;
+      }
+      if (msg.indexOf('transfer_from') >= 0) {
+        delete insertData.transfer_from;
+        missingCols.push('transfer_from');
+        needRetry = true;
+      }
+      if (needRetry) {
+        result = await SupaAuth.getClient().from('records').insert(insertData).select('*').single();
+        // 如果第二次还有列缺失错误，再降级一次（以防两列同时报错被第一次只捕获了一个）
+        if (result.error && result.error.message) {
+          var msg2 = result.error.message;
+          var needRetry2 = false;
+          if (msg2.indexOf('transfer_status') >= 0 && insertData.transfer_status !== undefined) {
+            delete insertData.transfer_status;
+            if (missingCols.indexOf('transfer_status') < 0) missingCols.push('transfer_status');
+            needRetry2 = true;
+          }
+          if (msg2.indexOf('transfer_from') >= 0 && insertData.transfer_from !== undefined) {
+            delete insertData.transfer_from;
+            if (missingCols.indexOf('transfer_from') < 0) missingCols.push('transfer_from');
+            needRetry2 = true;
+          }
+          if (needRetry2) {
+            result = await SupaAuth.getClient().from('records').insert(insertData).select('*').single();
+          }
+        }
+      }
+    }
+
+    // ===== 记录 schema 缺失，触发全局 UI 强提示 =====
+    if (missingCols.length > 0) {
+      console.warn('[addRecord v5.4] 数据库缺少列：', missingCols,
+                   '。请在 Supabase SQL Editor 中运行升级脚本 transfer-schema-fix.sql');
+      window.__recordsSchemaMissing = (window.__recordsSchemaMissing || []).concat(
+        missingCols.filter(function (c) { return (window.__recordsSchemaMissing || []).indexOf(c) < 0; })
+      );
+      // 通过自定义事件通知 UI 层显示 banner
+      try {
+        window.dispatchEvent(new CustomEvent('records-schema-missing', {
+          detail: { columns: window.__recordsSchemaMissing }
+        }));
+      } catch (e) { /* ignore old browsers */ }
     }
 
     if (!result.error && result.data) {
@@ -362,7 +410,7 @@ var DataLayer = (function () {
       console.error('保存记录到数据库失败:', result.error);
     }
 
-    return { data: newRecord, error: result.error };
+    return { data: newRecord, error: result.error, schemaMissing: missingCols };
   }
 
   // 删除记录
@@ -381,20 +429,45 @@ var DataLayer = (function () {
 
   /* ===== 过渡审批 ===== */
 
-  // 获取当前用户收到的待审批过渡记录
+  // ===== v5.4-fix P1: 获取待审批过渡记录 =====
+  // - 普通店员：只显示「别人过渡给我」的 pending 记录
+  // - 店长：显示本店所有 pending 过渡（可强制审批/拒绝）
   function getPendingTransfers() {
     if (!useSupabase) return [];
     var myName = getMyStaffName();
+    var isMgr = isManager();
     return cache.records.filter(function (r) {
-      return r.staff === myName && r.transferFrom && r.transferFrom !== myName && r.transferStatus === 'pending';
+      if (!r.transferFrom || r.transferFrom === r.staff) return false;
+      if (r.transferStatus !== 'pending') return false;
+      // 店长：全店所有 pending 过渡都能看到
+      if (isMgr) return true;
+      // 普通店员：只能看到过渡给自己的
+      return r.staff === myName;
     });
   }
 
   // 审批通过
   async function approveTransfer(recordId) {
-    // 更新缓存
+    // ===== v5.4-fix P0-1: 身份校验 =====
     var idx = cache.records.findIndex(function (r) { return r.id === recordId; });
-    if (idx >= 0) cache.records[idx].transferStatus = 'approved';
+    if (idx < 0) {
+      return { error: { message: '记录不存在' } };
+    }
+    var record = cache.records[idx];
+    var myName = getMyStaffName();
+    var isRecipient = record.staff === myName;
+    var isMgr = isManager();
+    if (!isRecipient && !isMgr) {
+      console.warn('[approveTransfer v5.4] 权限拒绝：caller=' + myName +
+                   ' recipient=' + record.staff + ' isManager=' + isMgr);
+      return { error: { message: '只有被过渡人本人或店长才能审批' } };
+    }
+    if (record.transferStatus !== 'pending') {
+      return { error: { message: '该记录状态已变更，无需重复审批' } };
+    }
+
+    // 更新缓存
+    cache.records[idx].transferStatus = 'approved';
 
     if (!useSupabase) return { error: null };
 
@@ -409,17 +482,62 @@ var DataLayer = (function () {
     return { error: result.error };
   }
 
-  // 审批拒绝（删除记录）
+  // ===== v5.4-fix P0-2: 审批拒绝（不删除，业绩退回给发起者）=====
   async function rejectTransfer(recordId) {
-    // 从缓存中移除
-    cache.records = cache.records.filter(function (r) { return r.id !== recordId; });
+    // ===== P0-1: 身份校验 =====
+    var idx = cache.records.findIndex(function (r) { return r.id === recordId; });
+    if (idx < 0) {
+      return { error: { message: '记录不存在' } };
+    }
+    var record = cache.records[idx];
+    var myName = getMyStaffName();
+    var isRecipient = record.staff === myName;
+    var isMgr = isManager();
+    if (!isRecipient && !isMgr) {
+      console.warn('[rejectTransfer v5.4] 权限拒绝：caller=' + myName +
+                   ' recipient=' + record.staff + ' isManager=' + isMgr);
+      return { error: { message: '只有被过渡人本人或店长才能拒绝' } };
+    }
+    if (record.transferStatus !== 'pending') {
+      return { error: { message: '该记录状态已变更，无需重复操作' } };
+    }
+
+    // ===== P0-2: 业绩退回，不删除 =====
+    // 把 staff 改回 transferFrom，transferStatus 标记为 rejected
+    // 同时清空 transferFrom 让它在发起人那边看起来像一条普通记录
+    var originalFrom = record.transferFrom || '';
+    cache.records[idx].staff = originalFrom;
+    cache.records[idx].transferStatus = 'rejected';
+    // 保留 transferFrom 字段作为历史溯源，但不再参与业务计算
+    // （getMyOutgoingTransfers/getPendingTransfers 都只认 transferStatus=pending）
 
     if (!useSupabase) {
       localStorage.setItem(SK_RECORDS, JSON.stringify(cache.records));
       return { error: null };
     }
 
-    var result = await SupaAuth.getClient().from('records').delete().eq('id', recordId);
+    var shopId = cache.profile.shop_id;
+    var fromStaffObj = cache.staffObjects.find(function (s) { return s.name === originalFrom; });
+    var updateData = {
+      transfer_status: 'rejected',
+      staff_id: fromStaffObj ? fromStaffObj.id : null
+    };
+
+    var result = await SupaAuth.getClient().from('records')
+      .update(updateData).eq('id', recordId);
+
+    // 如果 transfer_status 列不存在，尝试只更新 staff_id
+    if (result.error && result.error.message && result.error.message.indexOf('transfer_status') >= 0) {
+      delete updateData.transfer_status;
+      result = await SupaAuth.getClient().from('records')
+        .update(updateData).eq('id', recordId);
+    }
+    // 如果 staff_id 也不存在（老 schema），至少把缓存改了
+    if (result.error && result.error.message && result.error.message.indexOf('staff_id') >= 0) {
+      console.warn('[rejectTransfer v5.4] staff_id 列不存在，仅更新前端缓存');
+      return { error: null };
+    }
+
     return { error: result.error };
   }
 

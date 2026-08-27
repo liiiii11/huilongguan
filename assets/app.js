@@ -159,6 +159,45 @@ var App = (function () {
     el._timer = setTimeout(function () { el.classList.remove('show'); }, 2200);
   }
 
+  /* ===== v5.4-fix P0-3: records 表 schema 列缺失强提示 banner ===== */
+  var __schemaBannerShown = false;
+  function showSchemaWarningBanner(columns) {
+    if (!columns || columns.length === 0) return;
+    var colStr = columns.join('、');
+    // 1. 立即 toast 提示（保证用户能看到）
+    toast('数据库缺少列[' + colStr + ']：过渡功能将异常，请通知店长运行升级脚本', 'error', 10000);
+    // 2. 顶部常驻 banner（页面顶部插入红色警示）
+    if (__schemaBannerShown) return;
+    __schemaBannerShown = true;
+    try {
+      var banner = document.createElement('div');
+      banner.id = 'schema-warn-banner';
+      banner.style.cssText = [
+        'position:fixed;top:0;left:0;right:0;z-index:99999;',
+        'background:#dc2626;color:#fff;padding:10px 14px;font-size:13px;line-height:1.5;',
+        'box-shadow:0 2px 8px rgba(220,38,38,0.4);'
+      ].join('');
+      banner.innerHTML = '<strong>⚠️ 数据库需要升级</strong>：缺少列 <code style="background:rgba(255,255,255,0.2);padding:1px 5px;border-radius:3px;">' +
+        colStr +
+        '</code><br>' +
+        '过渡业绩审批将无法正常保存。请店长在 Supabase SQL Editor 中运行修复脚本 <strong>update-v5.4-transfer-fix.sql</strong>。' +
+        '<button onclick="document.getElementById(\'schema-warn-banner\').style.display=\'none\'" style="float:right;margin-left:8px;background:rgba(255,255,255,0.2);border:none;color:#fff;padding:2px 8px;border-radius:4px;font-size:12px;cursor:pointer;">×</button>';
+      // 兼容老浏览器：body 可能还没 ready
+      var mount = function () {
+        if (document.body) {
+          document.body.appendChild(banner);
+          // 如果页面有 topbar，给 body 加 padding-top 防止遮挡
+          document.body.style.paddingTop = '52px';
+        } else {
+          setTimeout(mount, 100);
+        }
+      };
+      mount();
+    } catch (e) {
+      console.warn('[showSchemaWarningBanner] banner 渲染失败:', e);
+    }
+  }
+
   /* ===== Custom Dialog (replace prompt/confirm) ===== */
   function showInputDialog(title, defaultValue, placeholder, callback) {
     document.getElementById('dialog-title').textContent = title;
@@ -695,7 +734,7 @@ var App = (function () {
     // 如果归属人就是自己，不需要过渡记录
     if (staff === transferFrom) transferFrom = '';
 
-    await DataLayer.addRecord({
+    var addRes = await DataLayer.addRecord({
       date: date,
       typeId: typeId,
       subtype: subtype || '',
@@ -706,6 +745,15 @@ var App = (function () {
       transferFrom: transferFrom,
       images: recordImages.slice()
     });
+
+    // ===== v5.4-fix P0-3: schema 列缺失时显示强提示 =====
+    if (addRes && addRes.schemaMissing && addRes.schemaMissing.length > 0) {
+      showSchemaWarningBanner(addRes.schemaMissing);
+    }
+    if (addRes && addRes.error) {
+      toast(addRes.error.message || '保存失败，请重试', 'error');
+      return;
+    }
 
     closeRecordSheet();
     
@@ -763,16 +811,25 @@ var App = (function () {
     var typeMap = {};
     types.forEach(function (t) { typeMap[t.id] = t; });
 
+    // ===== v5.4-fix P1: 店长模式标题区分 =====
+    var isMgr = DataLayer.isManager();
+    var titleText = isMgr
+      ? (pending.length + ' 条全店待审批过渡业绩（店长可强制处理）')
+      : (pending.length + ' 条待审批过渡业绩');
+
     var html = '<div class="pending-header">' +
       '<div class="pending-icon">' +
       '<svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M14.852 16.522l4.073-4.073a2.25 2.25 0 00-3.182-3.182l-4.073 4.073m-1.5-1.5l-4.073 4.073a2.25 2.25 0 003.182 3.182l4.073-4.073m-4.073 4.073L6 18m12-3l3 3M15 3l3 3"/></svg>' +
       '</div>' +
-      '<div class="pending-title">' + pending.length + ' 条待审批过渡业绩</div></div>';
+      '<div class="pending-title">' + titleText + '</div></div>';
 
     html += '<div class="pending-list">';
     pending.forEach(function (r) {
       var t = typeMap[r.typeId] || { name: '未知' };
       var typeLabel = t.name + (r.subtype ? ' / ' + r.subtype : '');
+      // v5.4 P1: 店长模式下按钮加「强制」标识
+      var approveLabel = isMgr ? '强制同意' : '同意';
+      var rejectLabel = isMgr ? '强制拒绝' : '拒绝';
       html += '<div class="pending-item">' +
         '<div class="pending-item-info">' +
         '<div class="pending-item-from">' + r.transferFrom + ' → <strong>' + r.staff + '</strong></div>' +
@@ -781,8 +838,8 @@ var App = (function () {
         (r.note ? '<div class="pending-item-note">' + r.note + '</div>' : '') +
         '</div>' +
         '<div class="pending-item-actions">' +
-        '<button class="pending-btn approve" onclick="App.approveTransfer(\'' + r.id + '\')">同意</button>' +
-        '<button class="pending-btn reject" onclick="App.rejectTransfer(\'' + r.id + '\')">拒绝</button>' +
+        '<button class="pending-btn approve" onclick="App.approveTransfer(\'' + r.id + '\')">' + approveLabel + '</button>' +
+        '<button class="pending-btn reject" onclick="App.rejectTransfer(\'' + r.id + '\')">' + rejectLabel + '</button>' +
         '</div></div>';
     });
     html += '</div>';
@@ -792,7 +849,11 @@ var App = (function () {
 
   async function approveTransfer(recordId) {
     try {
-      await DataLayer.approveTransfer(recordId);
+      var res = await DataLayer.approveTransfer(recordId);
+      if (res && res.error) {
+        toast(res.error.message || '操作失败，请重试', 'error');
+        return;
+      }
       toast('已同意过渡', 'success');
       renderPendingTransfers();
       renderCalendar();
@@ -804,11 +865,16 @@ var App = (function () {
   }
 
   async function rejectTransfer(recordId) {
-    showConfirmDialog('拒绝过渡', '确定拒绝这条过渡记录吗？拒绝后记录将被删除。', async function (ok) {
+    // ===== v5.4-fix P0-2: 提示语更新——不再删除，而是退回业绩 =====
+    showConfirmDialog('拒绝过渡', '确定拒绝这条过渡记录吗？拒绝后业绩将退回给过渡发起人。', async function (ok) {
       if (!ok) return;
       try {
-        await DataLayer.rejectTransfer(recordId);
-        toast('已拒绝过渡', 'success');
+        var res = await DataLayer.rejectTransfer(recordId);
+        if (res && res.error) {
+          toast(res.error.message || '操作失败，请重试', 'error');
+          return;
+        }
+        toast('已拒绝过渡，业绩已退回发起人', 'success');
         renderPendingTransfers();
         renderCalendar();
         renderMonthSummary();
@@ -1578,6 +1644,17 @@ var App = (function () {
         showSetupPage();
       } else if (result.mode === 'ready') {
         showMainApp();
+        // ===== v5.4-fix P0-3: 注册 schema 缺失事件监听 =====
+        try {
+          window.addEventListener('records-schema-missing', function (evt) {
+            var cols = (evt && evt.detail && evt.detail.columns) || window.__recordsSchemaMissing;
+            if (cols && cols.length > 0) showSchemaWarningBanner(cols);
+          });
+          // 如果之前已经有记录到的列缺失，立即显示
+          if (window.__recordsSchemaMissing && window.__recordsSchemaMissing.length > 0) {
+            showSchemaWarningBanner(window.__recordsSchemaMissing);
+          }
+        } catch (_) {}
         try { checkAndPromptMigration(); } catch (e) { console.error('[initAfterAuth] migration prompt error:', e); }
       } else if (result.mode === 'auth') {
         // ★ v5.1 修复关键：登录成功但读不到 profile，给用户明确提示，不再默默 showAuthPage 导致"没反应"
