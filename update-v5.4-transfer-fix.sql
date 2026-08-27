@@ -1,15 +1,16 @@
 -- =========================================================================
--- update-v5.4-transfer-fix.sql  —  过渡功能一次性修复脚本（v5.4）
+-- update-v5.4-transfer-fix.sql  —  过渡功能一次性修复脚本（v5.4.1）
 -- 执行时机：在 Supabase SQL Editor 中一次性运行，无需担心重复执行
 -- 覆盖修复：P0-1 权限（配合前端）、P0-2 拒绝不删除（配合前端）、
 --          P0-3 records 表缺列、P1 店长看全店 pending（配合前端）
+-- v5.4.1: 修复 PL/pgSQL 嵌套美元引号冲突 + 顶层 RAISE 语法错误
 -- =========================================================================
 
 -- -------------------------------------------------------------------------
 -- 1. records 表：安全添加 transfer_from / transfer_status 列（P0-3）
 --    使用 DO block 兼容 PostgreSQL 无原生 "ADD COLUMN IF NOT EXISTS"
 -- -------------------------------------------------------------------------
-DO $$
+DO $colfix$
 BEGIN
   -- 1a. transfer_from：记录过渡发起人（staff name，冗余存储，便于前端直接筛选）
   IF NOT EXISTS (
@@ -32,7 +33,7 @@ BEGIN
   ELSE
     RAISE NOTICE 'ℹ️  records.transfer_status 列已存在，跳过';
   END IF;
-END $$;
+END $colfix$;
 
 -- -------------------------------------------------------------------------
 -- 2. 老数据修复：将 NULL / 空字符串状态统一为 approved
@@ -61,7 +62,7 @@ CREATE INDEX IF NOT EXISTS idx_records_staff_transfer
 -- 4. RLS 兜底校验（确保 records 表的 select 权限没有递归嵌套）
 --    仅当检测到有问题的策略时才重建，正常策略不受影响
 -- =========================================================================
-DO $$
+DO $polfix$
 DECLARE
   r RECORD;
   has_deadlock INT;
@@ -73,8 +74,6 @@ BEGIN
     AND    schemaname = 'public'
     AND    cmd = 'SELECT'
   LOOP
-    -- 简单检测：如果 policy 中存在 "(SELECT shop_id FROM profiles" 这种嵌套同表子查询
-    -- 就标记为有风险
     SELECT COUNT(*) INTO has_deadlock
     FROM   pg_policy pol
     JOIN   pg_class  c   ON c.oid         = pol.polrelid
@@ -91,10 +90,13 @@ BEGIN
       RAISE NOTICE '🗑️  已删除有嵌套递归风险的 records SELECT 策略: %', r.policyname;
     END IF;
   END LOOP;
-END $$;
+END $polfix$;
 
--- 如果 records 上没有任何 SELECT 策略，补一个最简的（按 shop_id 过滤，无嵌套）
-DO $$
+-- -------------------------------------------------------------------------
+-- 5. 如果 records 上没有任何 SELECT 策略，补一个最简的
+--    （按 shop_id 过滤，无嵌套；helper 函数单独用 $func$ 标签，避免美元引号嵌套冲突）
+-- -------------------------------------------------------------------------
+DO $policyensure$
 DECLARE
   sel_policy_cnt INT;
 BEGIN
@@ -105,18 +107,21 @@ BEGIN
   AND    cmd        = 'SELECT';
 
   IF sel_policy_cnt = 0 THEN
-    -- 先确保有 helper 函数（与之前 schema-fix-patch.sql 保持一致）
+    -- helper 函数（与之前 schema-fix-patch.sql 保持一致）
+    -- 注意：这里用 $func$ 做分隔符，和外层 $policyensure$ 绝对不冲突
     IF NOT EXISTS (
       SELECT 1 FROM pg_proc WHERE proname = 'get_my_shop_id'
     ) THEN
-      CREATE OR REPLACE FUNCTION get_my_shop_id() RETURNS UUID AS $$
-      BEGIN
-        RETURN (SELECT p.shop_id
-                FROM   profiles p
-                WHERE  p.user_id = auth.uid()
-                LIMIT  1);
-      END;
-      $$ LANGUAGE plpgsql STABLE SECURITY DEFINER;
+      EXECUTE $_$
+        CREATE OR REPLACE FUNCTION get_my_shop_id() RETURNS UUID AS $func$
+        BEGIN
+          RETURN (SELECT p.shop_id
+                  FROM   profiles p
+                  WHERE  p.user_id = auth.uid()
+                  LIMIT  1);
+        END;
+        $func$ LANGUAGE plpgsql STABLE SECURITY DEFINER;
+      $_$;
       RAISE NOTICE '✅ helper 函数 get_my_shop_id 已创建';
     END IF;
 
@@ -124,12 +129,36 @@ BEGIN
       FOR SELECT USING (shop_id = get_my_shop_id() AND shop_id IS NOT NULL);
     RAISE NOTICE '✅ 已重建最简 records SELECT 策略（shop_id 直接比对，无递归）';
   END IF;
-END $$;
+END $policyensure$;
 
-RAISE NOTICE '=========================================================================';
-RAISE NOTICE '✅ v5.4 过渡功能修复脚本执行完成！';
-RAISE NOTICE '   • transfer_from / transfer_status 列已就绪';
-RAISE NOTICE '   • 老数据状态已修复';
-RAISE NOTICE '   • 索引已建立';
-RAISE NOTICE '   • 前端 v5.4 代码已同步：请刷新页面使前端降级警告消失';
-RAISE NOTICE '=========================================================================';
+-- -------------------------------------------------------------------------
+-- 6. 完成提示（包进 DO block，避免 SQL 顶层直接写 RAISE 报错）
+-- -------------------------------------------------------------------------
+DO $done$
+BEGIN
+  RAISE NOTICE '=========================================================================';
+  RAISE NOTICE '✅ v5.4 过渡功能修复脚本执行完成！';
+  RAISE NOTICE '   • transfer_from / transfer_status 列已就绪';
+  RAISE NOTICE '   • 老数据状态已修复';
+  RAISE NOTICE '   • 过渡筛选索引已建立';
+  RAISE NOTICE '   • 请刷新网页，前端红色降级横幅会自动消失';
+  RAISE NOTICE '   • 修复项：审批身份校验/拒绝不删除退回发起人/店长强制处理';
+  RAISE NOTICE '=========================================================================';
+END $done$;
+
+-- 最后用 SELECT 输出一份可读的"结果单"（Supabase Results 面板会直接显示）
+SELECT '✅ v5.4-transfer-fix 执行成功'            AS step,
+       '请刷新页面使降级警告横幅消失'                AS action
+UNION ALL
+SELECT '列：transfer_from / transfer_status',
+       (SELECT COUNT(*) FROM information_schema.columns
+        WHERE  table_name='records' AND column_name IN ('transfer_from','transfer_status')) || '/2 列就绪'
+UNION ALL
+SELECT '索引：过渡筛选索引',
+       (SELECT COUNT(*) FROM pg_indexes
+        WHERE  tablename='records'
+        AND    indexname IN ('idx_records_transfer_status','idx_records_staff_transfer')) || '/2 个已建'
+UNION ALL
+SELECT 'RLS：records SELECT 策略数',
+       (SELECT COUNT(*) FROM pg_policies
+        WHERE  tablename='records' AND schemaname='public' AND cmd='SELECT')::TEXT || ' 个';
