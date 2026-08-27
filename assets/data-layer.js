@@ -800,6 +800,113 @@ var DataLayer = (function () {
     return { error: result.error };
   }
 
+  // 读取完整员工对象（供员工管理 UI 展示 id / profile_id）
+  function getStaffObjects() {
+    return cache.staffObjects || [];
+  }
+
+  /* ===== v5.6 删除员工（店长可用）
+   * - 前端权限：本人必须是店长
+   * - 禁止删除：当前登录者本人对应的 staff 行（防止店长自删踢自己出去）
+   * - 数据删除范围（严格满足用户需求）：
+   *   ✅ DELETE staff 行（从员工列表移除）
+   *   ✅ UPDATE profiles SET shop_id=NULL WHERE profile_id 匹配（员工下次登录即 mode='setup' = "账号没有了"）
+   *   ❌ records 表一条都不动（不 DELETE / 不 UPDATE staff_id / staff 名称）—— 被删员工的销售、过渡出/过渡入数据全部永久保留
+   * - localStorage 降级模式：仅从 cache.staff / localStorage staff 数组移除 name
+   */
+  async function removeStaff(staffIdOrName) {
+    // 1. 权限：必须是店长 / admin / owner
+    if (useSupabase && !isManager()) {
+      return { error: { message: '仅店长才能移除员工' } };
+    }
+
+    // 2. 找到要删的 staff 对象或 name
+    var targetObj = null;
+    var targetName = null;
+    if (typeof staffIdOrName === 'string' && staffIdOrName.length > 20) {
+      // 大概率是 uuid（staff.id）
+      targetObj = (cache.staffObjects || []).find(function (so) { return so.id === staffIdOrName; });
+      if (targetObj) targetName = targetObj.name;
+    }
+    if (!targetObj && !targetName) {
+      // 按 name 匹配（降级模式也能用）
+      targetName = typeof staffIdOrName === 'string' ? staffIdOrName.trim() : '';
+      if (targetName) {
+        targetObj = (cache.staffObjects || []).find(function (so) { return so.name === targetName; });
+      }
+    }
+    if (!targetName) {
+      return { error: { message: '未找到要删除的员工' } };
+    }
+
+    // 3. 禁止删除本人（防止店长把自己踢出去）
+    var myStaffId = getMyStaffId();
+    var myStaffName = getMyStaffName();
+    var isSelf = false;
+    if (targetObj && myStaffId && targetObj.id === myStaffId) isSelf = true;
+    if (!isSelf && myStaffName && targetName === myStaffName) isSelf = true;
+    if (isSelf) {
+      return { error: { message: '不能删除当前登录的账号（防止把自己踢出去）' } };
+    }
+
+    // 4. 本地缓存先更新（UI 立即响应）
+    cache.staff = cache.staff.filter(function (n) { return n !== targetName; });
+    if (targetObj) {
+      cache.staffObjects = (cache.staffObjects || []).filter(function (so) { return so.id !== targetObj.id; });
+    }
+    if (!useSupabase) {
+      localStorage.setItem(SK_STAFF, JSON.stringify(cache.staff));
+      return { error: null };
+    }
+
+    // 5. Supabase 写操作
+    var client = SupaAuth.getClient();
+    var shopId = cache.profile && cache.profile.shop_id;
+    var lastErr = null;
+
+    // 5a. profiles：如果该员工绑定了 profile_id → 把对应 profiles.shop_id=NULL（员工被"移除出店"，下次登录 mode=setup）
+    if (targetObj && targetObj.profile_id) {
+      try {
+        var upRes = await client
+          .from('profiles')
+          .update({ shop_id: null })
+          .eq('id', targetObj.profile_id)
+          .eq('shop_id', shopId);
+        if (upRes && upRes.error) {
+          lastErr = upRes.error;
+          console.error('[removeStaff] profiles UPDATE shop_id=NULL 失败:', upRes.error);
+        } else {
+          console.info('[removeStaff] 已置空 profile.shop_id, profile_id=' + targetObj.profile_id);
+        }
+      } catch (e) {
+        lastErr = e;
+        console.error('[removeStaff] profiles UPDATE 抛错:', e);
+      }
+    }
+
+    // 5b. staff：DELETE 行（records 表完全不动，历史销售/过渡数据永久保留）
+    if (targetObj) {
+      try {
+        var delRes = await client
+          .from('staff')
+          .delete()
+          .eq('id', targetObj.id)
+          .eq('shop_id', shopId);
+        if (delRes && delRes.error) {
+          lastErr = delRes.error;
+          console.error('[removeStaff] staff DELETE 失败:', delRes.error);
+        } else {
+          console.info('[removeStaff] 已 DELETE staff 行，id=' + targetObj.id + '，name=' + targetName + '（records 表未做任何改动，历史数据永久保留）');
+        }
+      } catch (e) {
+        lastErr = e;
+        console.error('[removeStaff] staff DELETE 抛错:', e);
+      }
+    }
+
+    return { error: lastErr };
+  }
+
   /* ===== 从 localStorage 迁移到 Supabase ===== */
   async function migrateFromLocalStorage() {
     if (!useSupabase || !cache.profile) return { migrated: 0 };
@@ -953,6 +1060,7 @@ var DataLayer = (function () {
     loadTypes: loadTypes,
     getProfile: getProfile,
     getShop: getShop,
+    getStaffObjects: getStaffObjects,
     isManager: isManager,
     isSupaMode: isSupaMode,
     getMyStaffName: getMyStaffName,
@@ -963,6 +1071,7 @@ var DataLayer = (function () {
     saveType: saveType,
     removeType: removeType,
     addStaff: addStaff,
+    removeStaff: removeStaff,
     // 过渡审批
     getPendingTransfers: getPendingTransfers,
     approveTransfer: approveTransfer,

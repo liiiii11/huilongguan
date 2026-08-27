@@ -579,6 +579,96 @@ body {
 }
 .add-type-btn svg { width: 22px; height: 22px; }
 
+/* ===== Staff Management Section ===== */
+.staff-list-box {
+  background: var(--bg2);
+  border-radius: var(--radius-sm);
+  padding: 0.9rem 1rem 1rem;
+  margin-bottom: 0.85rem;
+  box-shadow: var(--shadow);
+}
+.staff-list-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.6rem;
+}
+.staff-add-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  background: var(--accent-soft);
+  color: var(--accent);
+  border: none;
+  border-radius: 999px;
+  padding: 0.32rem 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.staff-add-btn:active { opacity: 0.7; }
+.staff-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  margin-bottom: 0.55rem;
+}
+.staff-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--bg);
+  border-radius: var(--radius-sm);
+  padding: 0.55rem 0.75rem;
+}
+.staff-row .name {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--fg);
+}
+.staff-row .sub {
+  font-size: 0.7rem;
+  color: var(--muted);
+  margin-top: 0.08rem;
+}
+.staff-row .actions {
+  display: flex;
+  gap: 0.25rem;
+}
+.staff-row .btn-del {
+  width: 34px; height: 34px;
+  border-radius: 50%;
+  border: none;
+  background: #fff1f2;
+  color: var(--danger);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.staff-row .btn-del:active { background: #fee2e2; }
+.staff-row .btn-del svg { width: 17px; height: 17px; }
+.staff-row.self {
+  border: 1.5px solid var(--accent-soft);
+}
+.staff-row.self .name::after {
+  content: '（当前登录账号）';
+  color: var(--accent);
+  font-size: 0.7rem;
+  font-weight: 500;
+  margin-left: 0.35rem;
+}
+.staff-list-tip {
+  font-size: 0.72rem;
+  line-height: 1.4;
+  color: var(--muted);
+  padding: 0.45rem 0.6rem;
+  background: var(--bg);
+  border-radius: var(--radius-sm);
+}
+.staff-list-tip b { color: var(--success); }
+
 /* ===== Monthly / Daily Summary Pages ===== */
 .page-summary { padding: 1rem; }
 .summary-stats {
@@ -1585,6 +1675,19 @@ body {
         <div class="setup-code-box" style="margin-bottom:0.75rem;">
           <div class="label">店铺邀请码（分享给同事加入）</div>
           <div class="code" id="types-shop-code">------</div>
+        </div>
+      </div>
+      <div id="staff-list-section" style="display:none;">
+        <div class="staff-list-box">
+          <div class="staff-list-title-row">
+            <div class="label" style="font-size:0.9rem;font-weight:700;color:var(--fg);">👥 店铺员工</div>
+            <button class="staff-add-btn" onclick="App.openAddStaffDialog()">
+              <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="width:16px;height:16px;"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+              添加
+            </button>
+          </div>
+          <div id="staff-list" class="staff-list"></div>
+          <div class="staff-list-tip">删除员工 = 账号从本店铺移除（下次登录需重新加入），但该员工历史销售 / 过渡出 / 过渡入业绩 <b>全部永久保留</b>。</div>
         </div>
       </div>
       <div class="info-banner">

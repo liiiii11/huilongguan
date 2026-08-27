@@ -946,6 +946,9 @@ var App = (function () {
       }
     }
 
+    // v5.6 渲染员工列表（仅店长/管理员/Owner 可见）
+    renderStaffList();
+
     var types = loadTypes();
     var container = document.getElementById('types-list');
 
@@ -974,6 +977,144 @@ var App = (function () {
         '<button class="delete" onclick="App.deleteType(\'' + t.id + '\')"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916"/></svg></button>' +
         '</div></div>';
     }).join('');
+  }
+
+  /* ===== v5.6 员工管理 UI 渲染（仅店长可见）===== */
+  function renderStaffList() {
+    var section = document.getElementById('staff-list-section');
+    if (!section) return;
+
+    // 仅店长 / 管理员 / Owner 显示员工管理面板
+    var isMgr = DataLayer.isManager && DataLayer.isManager();
+    if (!isMgr) {
+      section.style.display = 'none';
+      return;
+    }
+    section.style.display = '';
+
+    var listEl = document.getElementById('staff-list');
+    if (!listEl) return;
+
+    var staffObjs = (DataLayer.getStaffObjects && DataLayer.getStaffObjects()) || [];
+    var staffNames = loadStaff();
+    var myStaffId = DataLayer.getMyStaffId && DataLayer.getMyStaffId();
+    var myName = DataLayer.getMyStaffName && DataLayer.getMyStaffName();
+
+    // 合并对象 + 字符串名字（兼容历史数据，可能只有字符串数组）
+    var unified = [];
+    var seenNames = {};
+    // 1. 优先 staffObjects（有 id / profile_id）
+    staffObjs.forEach(function (so) {
+      if (!so || !so.name) return;
+      seenNames[so.name] = true;
+      var isSelf = false;
+      if (myStaffId && so.id === myStaffId) isSelf = true;
+      if (!isSelf && myName && so.name === myName) isSelf = true;
+      unified.push({
+        id: so.id,
+        name: so.name,
+        hasLogin: !!so.profile_id,
+        isSelf: isSelf
+      });
+    });
+    // 2. 兜底 staff（字符串数组，可能是旧数据/本地数据）
+    staffNames.forEach(function (n) {
+      if (!n || seenNames[n]) return;
+      var isSelf = (myName && n === myName);
+      unified.push({
+        id: null,
+        name: n,
+        hasLogin: false,
+        isSelf: isSelf
+      });
+    });
+
+    if (unified.length === 0) {
+      listEl.innerHTML = '<div class="sub" style="padding:0.3rem 0;">暂无员工（先分享邀请码让同事加入店铺）</div>';
+      return;
+    }
+
+    var DEL_ICON = '<svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916"/></svg>';
+
+    listEl.innerHTML = unified.map(function (s) {
+      var selfCls = s.isSelf ? ' self' : '';
+      var sub = s.hasLogin ? '✅ 已绑定登录账号' : '📝 仅录入姓名（无绑定账号）';
+      var key = s.id ? ("'" + s.id + "'") : ("'" + s.name.replace(/'/g, "\\'") + "'");
+      // 当前登录本人：不显示删除按钮（防止店长把自己踢出去，DataLayer 也会再兜底）
+      var actions = s.isSelf
+        ? ''
+        : '<button class="btn-del" onclick="App.deleteStaff(' + key + ')" title="移除出店">' + DEL_ICON + '</button>';
+      return '' +
+        '<div class="staff-row' + selfCls + '">' +
+          '<div>' +
+            '<div class="name">' + escapeHtml(s.name) + '</div>' +
+            '<div class="sub">' + sub + '</div>' +
+          '</div>' +
+          '<div class="actions">' + actions + '</div>' +
+        '</div>';
+    }).join('');
+  }
+
+  function openAddStaffDialog() {
+    if (!(DataLayer.isManager && DataLayer.isManager())) {
+      toast('仅店长才能添加员工', 'error');
+      return;
+    }
+    showInputDialog(
+      '添加员工',
+      '',
+      '输入员工姓名（仅用于显示，绑定账号需要员工用邀请码加入）',
+      function (val) {
+        if (val === null) return;
+        doAddStaff(val);
+      }
+    );
+  }
+
+  async function doAddStaff(rawName) {
+    var name = (rawName || '').trim();
+    if (!name) { toast('姓名不能为空', 'error'); return; }
+    var ret = await DataLayer.addStaff(name);
+    if (ret && ret.error) {
+      toast('添加失败：' + (ret.error.message || ''), 'error');
+      return;
+    }
+    toast('已添加员工：' + name, 'success');
+    renderStaffList();
+  }
+
+  function deleteStaff(staffIdOrName) {
+    if (!(DataLayer.isManager && DataLayer.isManager())) {
+      toast('仅店长才能删除员工', 'error');
+      return;
+    }
+    var objs = (DataLayer.getStaffObjects && DataLayer.getStaffObjects()) || [];
+    var name = staffIdOrName;
+    var match = objs.find(function (s) { return s.id === staffIdOrName; });
+    if (match) name = match.name;
+
+    var msg = '将员工「' + name + '」从本店铺移除？<br><br>' +
+              '✅ 该员工 <b>账号从店铺移除</b>（下次登录需要重新加入店铺，等于账号没有了）<br>' +
+              '✅ 该员工 <b>历史销售记录 / 过渡给其他人 / 别人过渡给他的业绩，全部永久保留</b>，<b style="color:var(--success)">一条都不会删除</b><br>' +
+              '⚠️ 员工本人再次登录会进入「创建/加入店铺」页面，需要重新输入邀请码加入。';
+    showConfirmDialog('移除员工「' + name + '」', msg, async function (ok) {
+      if (!ok) return;
+      var ret = await DataLayer.removeStaff(staffIdOrName);
+      if (ret && ret.error) {
+        toast('移除失败：' + (ret.error.message || '请先在 Supabase 执行 update-v5.6.0-staff-management-rls.sql'), 'error');
+        return;
+      }
+      toast('已移除员工「' + name + '」，数据全部保留 ✅', 'success');
+      // 员工列表 + 月汇总筛选 / 日详情归属下拉 / 日历：都需要刷新
+      await refreshData();
+      renderStaffList();
+      renderCalendar();
+      populateFilterOptions();
+      var activeDay = state.activeDay;
+      if (activeDay) renderDayDetail(activeDay);
+      var sel = document.getElementById('page-monthly');
+      if (sel && sel.style.display !== 'none') renderMonthly();
+    });
   }
 
   function openTypeSheet(id) {
@@ -2127,6 +2268,9 @@ var App = (function () {
     toggleSubtypeCalcMode: toggleSubtypeCalcMode,
     saveType: saveType,
     deleteType: deleteType,
+    // v5.6 员工管理
+    openAddStaffDialog: openAddStaffDialog,
+    deleteStaff: deleteStaff,
     renderMonthly: renderMonthly,
     filterMonthly: filterMonthly,
     onFilterCategoryChange: onFilterCategoryChange,
