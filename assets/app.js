@@ -1588,9 +1588,32 @@ var App = (function () {
       if (authMode === 'register') {
         if (!displayName) { toast('请输入昵称', 'error'); return; }
         var regResult = await SupaAuth.signUp(email, password, displayName);
+        // ===== v5.4-fix: signUp 报「已注册」→ 自动 fallback 登录（账号在 auth.users 里，只是 profiles 被后台删了）=====
         if (regResult.error) {
+          var errMsg = String(regResult.error.message || '');
+          var isAlreadyRegistered = /already\s+registered|已注册|already\s+a\s+user|user\s+already\s+exists|email\s+already/i.test(errMsg);
+          if (isAlreadyRegistered) {
+            console.info('[doAuth] signUp reported already registered → fallback signIn');
+            var fbLogin = await SupaAuth.signIn(email, password);
+            if (!fbLogin.error) {
+              toast('该账号已存在，已为您自动登录。若尚未加入店铺，请选择加入店铺或创建店铺。', 'success', 10000);
+              await initAfterAuth();
+              return;
+            }
+            // fallback 登录失败（比如密码不对）：提示密码错并切到登录 tab
+            var fbMsg = String(fbLogin.error && fbLogin.error.message || '');
+            if (/invalid.*password|password.*invalid|invalid\s+credentials|账号或密码|密码错误/i.test(fbMsg)) {
+              toast('该邮箱已注册但密码错误，请切换到「登录」并使用正确密码登录（或找回密码）', 'error', 10000);
+            } else {
+              toast('该邮箱已注册：' + fbMsg, 'error');
+            }
+            switchAuthTab('login');
+            document.getElementById('auth-email').value = email;
+            return;
+          }
+          // 其他 signUp 错误（非已注册）
           console.error('[doAuth] signUp error:', regResult.error);
-          toast(regResult.error.message || '注册失败', 'error');
+          toast(errMsg || '注册失败', 'error');
           return;
         }
         if (!regResult.data.session) {
@@ -1695,10 +1718,18 @@ var App = (function () {
         } catch (_) {}
         try { checkAndPromptMigration(); } catch (e) { console.error('[initAfterAuth] migration prompt error:', e); }
       } else if (result.mode === 'auth') {
-        // ★ v5.1 修复关键：登录成功但读不到 profile，给用户明确提示，不再默默 showAuthPage 导致"没反应"
-        console.warn('[initAfterAuth] mode=auth after login → profiles RLS 死循环或 profiles 记录未生成');
+        // ★ v5.4 修复：区分两种 auth 情况
+        //   1) profile_rebuild_failed：profiles 被后台删除后，兜底重建也失败（通常缺 INSERT RLS policy）→ 带 SQL 提示
+        //   2) 其他：profiles RLS 死循环 或 记录未生成 → 提示修复 RLS
+        console.warn('[initAfterAuth] mode=auth after login → subcode=' + result.authSubcode);
         if (sessBefore && sessBefore.user) {
-          toast('登录成功但无法读取您的账号资料：请通知管理员在 Supabase 控制台执行数据库修复脚本 update-v5.sql', 'error', 12000);
+          if (result.authSubcode === 'profile_rebuild_failed') {
+            var rebuildMsg = (result.authMsg || 'profiles 记录缺失且自动重建失败') +
+              '（如刚在后台删除过员工/资料，属正常）请通知管理员在 Supabase 执行 update-v5.4.3-profile-fix.sql，执行后刷新即可自动加入店铺或创建店铺。';
+            toast(rebuildMsg, 'error', 15000);
+          } else {
+            toast('登录成功但无法读取您的账号资料：请通知管理员在 Supabase 控制台执行数据库修复脚本 update-v5.sql（重点检查 profiles RLS 策略是否含嵌套子查询）', 'error', 12000);
+          }
         } else {
           showAuthPage();
         }

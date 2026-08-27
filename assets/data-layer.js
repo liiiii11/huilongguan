@@ -41,11 +41,29 @@ var DataLayer = (function () {
       var session = await SupaAuth.getSession();
       if (!session) return { mode: 'auth' };
 
-      // v5-fix: 即使 getProfile 返回 null，也先给出明确状态，不直接走后续报错
+      // v5.4-fix: profile=null（读不到 profiles 记录）先自动兜底重建，避免 mode='auth' 卡死
+      //          场景：后台手动删了 profiles 员工记录，但 auth.users 仍然存在
       var profile = await SupaAuth.getProfile();
       if (!profile) {
-        console.warn('[DataLayer.init] profile is null after login; forcing re-auth');
-        return { mode: 'auth' };
+        console.warn('[DataLayer.init] profile is null → 尝试兜底 ensureProfileForCurrentUser');
+        var ensureResult = null;
+        try {
+          ensureResult = typeof SupaAuth.ensureProfileForCurrentUser === 'function'
+            ? await SupaAuth.ensureProfileForCurrentUser()
+            : null;
+        } catch (eEnsure) {
+          console.error('[DataLayer.init] ensureProfile THREW:', eEnsure && eEnsure.message);
+        }
+        if (ensureResult && ensureResult.data) {
+          profile = ensureResult.data;
+          console.info('[DataLayer.init] profiles 兜底重建成功，shop_id=' + (profile.shop_id || 'NULL'));
+        } else {
+          // 兜底也失败 → 返回 mode='auth' 并带错误原因，前端显示带 action 的 toast
+          var failErr = (ensureResult && ensureResult.error) ? ensureResult.error : null;
+          var failMsg = (failErr && failErr.message) || 'profiles 记录缺失且自动重建失败';
+          console.error('[DataLayer.init] profile=null 且重建兜底也失败', failMsg);
+          return { mode: 'auth', authSubcode: 'profile_rebuild_failed', authMsg: failMsg, needsSql: (failErr && !!failErr.needsSql) };
+        }
       }
       if (!profile.shop_id) return { mode: 'setup' };
 

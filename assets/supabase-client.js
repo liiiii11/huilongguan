@@ -118,6 +118,82 @@ var SupaAuth = (function () {
     }
   }
 
+  // ===== v5.4-fix: 兜底重建当前用户 profiles 记录 =====
+  // 场景：后台手动删除了 profiles 里该员工，但 auth.users 还存在
+  //       → 登录成功但 getProfile 返回 null → mode='auth' → 前端无法正常进入
+  // 解决：登录成功后检测到 profiles 不存在，自动 INSERT 一条最小化 profile
+  //       (shop_id=NULL, role='staff')，之后 initAfterAuth 会进入 setup 页（加入店铺/创建店铺）
+  async function ensureProfileForCurrentUser() {
+    if (!client) return { data: null, error: { message: 'Supabase 未初始化' } };
+    try {
+      var user = await getUser();
+      if (!user) return { data: null, error: { message: '当前未登录' } };
+
+      // 1) 先确认真的没有（避免并发调用重复插入）
+      var existResult = await client
+        .from('profiles')
+        .select('*')
+        .eq('user_id', user.id);
+      if (existResult && !existResult.error && existResult.data && existResult.data.length > 0) {
+        return { data: existResult.data[0], existed: true };
+      }
+
+      var displayName = '';
+      try { displayName = (user.raw_user_meta_data && user.raw_user_meta_data.display_name) || user.email || user.phone || '新用户'; } catch (_) {}
+      var userEmail = '';
+      try { userEmail = user.email || ''; } catch (_) {}
+
+      // 2) 三次降级 INSERT，兼容不同列版本的 profiles 表
+      //    第一级：尝试包含 email 的完整插入
+      //    第二级：只包含 schema-fix-patch.sql 里确认存在的 4 列（user_id/display_name/role/shop_id）
+      //    第三级：最小化插入（仅 user_id + display_name，和 join_shop/create_shop RPC 写 INSERT 一致，100% 列存在）
+      var triedCols = [];
+      var insertTries = [
+        { cols: ['user_id','display_name','role','shop_id','email'],
+          row:  { user_id: user.id, display_name: displayName, role: 'staff', shop_id: null, email: userEmail } },
+        { cols: ['user_id','display_name','role','shop_id'],
+          row:  { user_id: user.id, display_name: displayName, role: 'staff', shop_id: null } },
+        { cols: ['user_id','display_name'],
+          row:  { user_id: user.id, display_name: displayName } }
+      ];
+
+      var lastErr = null;
+      for (var i = 0; i < insertTries.length; i++) {
+        var t = insertTries[i];
+        triedCols = t.cols;
+        try {
+          var ins = await client
+            .from('profiles')
+            .insert(t.row)
+            .select('*')
+            .single();
+          if (ins && !ins.error && ins.data) {
+            console.info('[SupaAuth.ensureProfile] 重建 profiles 成功 (tier=' + (i+1) + '/3, cols=' + t.cols.join(','));
+            return { data: ins.data, existed: false, tier: i+1, triedCols: t.cols };
+          }
+          if (ins && ins.error) lastErr = ins.error;
+        } catch (eInsert) {
+          lastErr = eInsert;
+        }
+        // 最后一级尝试失败也会退出循环
+      }
+
+      // 到这里：三次插入都失败。极大概率是 profiles 表缺少 INSERT RLS policy（用户自己 INSERT 自己的记录被拒绝）
+      var msg = 'profiles 记录缺失，自动重建失败';
+      if (lastErr && lastErr.message) msg += '：' + lastErr.message;
+      if (lastErr && (lastErr.code === '42501' || /policy|denied|permission/i.test(lastErr.message || ''))) {
+        msg += '（原因：缺少 profiles INSERT RLS 策略，请在 Supabase 执行 update-v5.4.3 补丁 SQL）';
+      }
+      console.error('[SupaAuth.ensureProfile] 全部 3 级兜底插入都失败。最后一次 cols=' + triedCols.join(','),
+        lastErr && (lastErr.message || lastErr));
+      return { data: null, error: { message: msg, cause: lastErr, needsSql: true } };
+    } catch (e) {
+      var ne = _normError(e);
+      console.error('[SupaAuth.ensureProfile] THREW:', ne.message);
+      return { data: null, error: ne };
+    }
+  }
+
   // 把 RPC 抛出的各种异常统一规范化为带 message 的 Error，保证前端可以直接 .message 访问
   function _normError(e) {
     if (!e) return { message: '未知错误' };
@@ -174,6 +250,7 @@ var SupaAuth = (function () {
     getSession: getSession,
     getUser: getUser,
     getProfile: getProfile,
+    ensureProfileForCurrentUser: ensureProfileForCurrentUser,
     signUp: signUp,
     signIn: signIn,
     signOut: signOut,
