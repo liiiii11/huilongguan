@@ -506,23 +506,25 @@ var DataLayer = (function () {
     var myStaffId = getMyStaffId();
     var myName = getMyStaffName();
     var isRecipient = (record._staffId && myStaffId && record._staffId === myStaffId);
-    // 兼容降级：若 UUID 双方任一方为空（localStorage 模式或老数据），才退回 name 字符串比
-    if (!isRecipient && (!record._staffId || !myStaffId)) {
-      isRecipient = (record.staff === myName);
-    }
+    // ===== v5.4.7-fix: UUID 不通过就无条件 fallback 字符串（不管双方是否非空）=====
+    // 之前要求 (!record._staffId || !myStaffId) 才 fallback 会漏掉一种：
+    // staff 表有两条同名记录（一条 profile_id 关联 id=new，一条旧记录 id=old）→
+    // 当前 getMyStaffId 拿 profile_id 关联的 newId，但过渡历史记录 staff_id=oldId
+    // → UUID 判不等，但其实两个 id 都是同一个本人名字 → 字符串比对能过
+    if (!isRecipient) isRecipient = (record.staff === myName);
     var isMgr = isManager();
     if (!isRecipient && !isMgr) {
-      console.warn('[approveTransfer v5.4.6] 权限拒绝：caller=' + myName +
-                   ' (staffId=' + myStaffId + ')' +
-                   ' recipient=' + record.staff +
-                   ' (record._staffId=' + record._staffId + ')' +
-                   ' isManager=' + isMgr);
-      return { error: { message: '只有被过渡人本人或店长才能审批' } };
+      var dbg = '权限拒绝：我的名字=' + (myName || '(空)') +
+                ' / 记录归属=' + (record.staff || '(空)') +
+                ' / 我的staffId=' + (myStaffId || '空') +
+                ' / 记录staffId=' + (record._staffId || '空');
+      console.warn('[approveTransfer v5.4.7] ' + dbg);
+      return { error: { message: '只有被过渡人本人或店长才能审批（' + dbg + '）' } };
     }
     if (record.transferStatus !== 'pending') {
       return { error: { message: '该记录状态已变更，无需重复审批' } };
     }
-    console.info('[approveTransfer v5.4.6] 身份校验通过：caller=' + myName +
+    console.info('[approveTransfer v5.4.7] 身份校验通过：caller=' + myName +
                  ' (staffId=' + myStaffId + ')' +
                  ' 角色=' + (isMgr ? '店长' : '被过渡人本人'));
 
@@ -571,22 +573,21 @@ var DataLayer = (function () {
     var myStaffId = getMyStaffId();
     var myName = getMyStaffName();
     var isRecipient = (record._staffId && myStaffId && record._staffId === myStaffId);
-    if (!isRecipient && (!record._staffId || !myStaffId)) {
-      isRecipient = (record.staff === myName);
-    }
+    // v5.4.7: UUID 不通过就无条件 fallback 字符串
+    if (!isRecipient) isRecipient = (record.staff === myName);
     var isMgr = isManager();
     if (!isRecipient && !isMgr) {
-      console.warn('[rejectTransfer v5.4.6] 权限拒绝：caller=' + myName +
-                   ' (staffId=' + myStaffId + ')' +
-                   ' recipient=' + record.staff +
-                   ' (record._staffId=' + record._staffId + ')' +
-                   ' isManager=' + isMgr);
-      return { error: { message: '只有被过渡人本人或店长才能拒绝' } };
+      var dbg = '权限拒绝：我的名字=' + (myName || '(空)') +
+                ' / 记录归属=' + (record.staff || '(空)') +
+                ' / 我的staffId=' + (myStaffId || '空') +
+                ' / 记录staffId=' + (record._staffId || '空');
+      console.warn('[rejectTransfer v5.4.7] ' + dbg);
+      return { error: { message: '只有被过渡人本人或店长才能拒绝（' + dbg + '）' } };
     }
     if (record.transferStatus !== 'pending') {
       return { error: { message: '该记录状态已变更，无需重复操作' } };
     }
-    console.info('[rejectTransfer v5.4.6] 身份校验通过：caller=' + myName +
+    console.info('[rejectTransfer v5.4.7] 身份校验通过：caller=' + myName +
                  ' (staffId=' + myStaffId + ')' +
                  ' 角色=' + (isMgr ? '店长' : '被过渡人本人'));
 
@@ -655,9 +656,9 @@ var DataLayer = (function () {
     if (isManager()) return true;
     var myStaffId = getMyStaffId();
     var myName = getMyStaffName();
-    // 自己添加给自己的记录可以删（优先 UUID，降级 name）
+    // 自己添加给自己的记录可以删（优先 UUID，v5.4.7 兜底无条件字符串）
     var isOwn = (record._staffId && myStaffId && record._staffId === myStaffId);
-    if (!isOwn && (!record._staffId || !myStaffId)) isOwn = (record.staff === myName);
+    if (!isOwn) isOwn = (record.staff === myName);
     if (isOwn && (!record.transferFrom || record.transferFrom === myName)) return true;
     // 过渡者（发起人）可以删除（transfer_from 是名字符串，无法用 UUID）
     if (record.transferFrom === myName) return true;
