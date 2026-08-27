@@ -230,7 +230,21 @@ var DataLayer = (function () {
   function loadTypes() { return cache.types; }
   function getProfile() { return cache.profile; }
   function getShop() { return cache.shop; }
-  function isManager() { return cache.profile && cache.profile.role === 'manager'; }
+
+  /* ===== 判断是否店长：宽松匹配 v5.3-fix ===== */
+  function isManager() {
+    if (!cache.profile) return false;
+    var role = cache.profile.role;
+    var roleNorm = (role == null) ? '' : String(role).trim().toLowerCase();
+    var result = roleNorm === 'manager' || roleNorm === 'admin' || roleNorm === 'owner';
+    // v5.3: 调试打印（登录后只打一次，方便排查权限问题）
+    if (!window.__isManagerDebugged && cache.profile.id) {
+      window.__isManagerDebugged = true;
+      console.log('[isManager v5.3] 真实 role=' + JSON.stringify(role) +
+                  ' → 规范化="' + roleNorm + '" → 结果=' + result);
+    }
+    return result;
+  }
   function isSupaMode() { return useSupabase; }
 
   /* ===== 获取当前用户对应的 staff name ===== */

@@ -381,3 +381,34 @@ SELECT schemaname, tablename, policyname, permissive, roles, cmd, qual, with_che
 --    2. 让当前已登录的用户退出再重新登录一次 (刷新 session)
 --    3. 前端 joinShop 成功后务必重新调用 DataLayer.init() 再跳转
 -- ============================================================
+
+-- ============================================================
+--  v5.2 增补：如果之前跑过 v5 但仍报 42P17 infinite recursion →
+--  说明旧的 "xxx_select_own" 递归 policy 还残留，下面这段全部清理掉
+--  (直接在 SQL Editor 再跑一次即可，DROP POLICY IF EXISTS 很安全)
+-- ============================================================
+DROP POLICY IF EXISTS profile_select_own ON public.profiles;
+DROP POLICY IF EXISTS profile_update_own ON public.profiles;
+DROP POLICY IF EXISTS shop_select_own ON public.shops;
+DROP POLICY IF EXISTS shop_update_own ON public.shops;
+DROP POLICY IF EXISTS staff_select_own ON public.staff;
+DROP POLICY IF EXISTS staff_insert_own ON public.staff;
+DROP POLICY IF EXISTS staff_update_own ON public.staff;
+DROP POLICY IF EXISTS staff_delete_own ON public.staff;
+DROP POLICY IF EXISTS type_select_own ON public.types;
+DROP POLICY IF EXISTS type_insert_own ON public.types;
+DROP POLICY IF EXISTS type_update_own ON public.types;
+DROP POLICY IF EXISTS type_delete_own ON public.types;
+DROP POLICY IF EXISTS subtype_select_own ON public.subtypes;
+DROP POLICY IF EXISTS subtype_insert_own ON public.subtypes;
+DROP POLICY IF EXISTS subtype_update_own ON public.subtypes;
+DROP POLICY IF EXISTS subtype_delete_own ON public.subtypes;
+DROP POLICY IF EXISTS record_select_own ON public.records;
+DROP POLICY IF EXISTS record_insert_own ON public.records;
+DROP POLICY IF EXISTS record_update_own ON public.records;
+DROP POLICY IF EXISTS record_delete_own ON public.records;
+DROP POLICY IF EXISTS transfer_select_own ON public.transfers;
+DROP POLICY IF EXISTS transfer_insert_own ON public.transfers;
+DROP POLICY IF EXISTS transfer_update_own ON public.transfers;
+-- 清理完成。再次运行验证查询确认没有 "xxx_own" 结尾的 policy。
+
