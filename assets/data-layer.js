@@ -284,6 +284,36 @@ var DataLayer = (function () {
     return cache.staff[0] || '我';
   }
 
+  // ===== v5.4.6-fix: 获取当前用户在本店铺的 staff 记录 id（UUID）=====
+  // 优先级：1) staff.profile_id === 当前 profile.id（join_shop 写入，100% 准）
+  //        2) staff.name === getMyStaffName() 字符串匹配
+  //        3) 兜底：profile.display_name 匹配
+  // 用于过渡审批身份校验（_staffId UUID 比字符串 name 更可靠，无大小写/空格陷阱）
+  function getMyStaffId() {
+    if (!useSupabase || !cache.profile) return null;
+    var myProfileId = cache.profile.id;
+    var myDisplayName = cache.profile.display_name || '';
+    var nameMatch = getMyStaffName();
+
+    // 1) 优先 profile_id（join_shop RPC 写入 s.profile_id = p.id，这是真实关联）
+    var byProfile = cache.staffObjects.find(function (s) {
+      return s.profile_id && myProfileId && s.profile_id === myProfileId;
+    });
+    if (byProfile) return byProfile.id;
+
+    // 2) 降级 staff.name 精准匹配
+    var byName = cache.staffObjects.find(function (s) {
+      return s.name && nameMatch && s.name === nameMatch;
+    });
+    if (byName) return byName.id;
+
+    // 3) 最后兜底：display_name 精准匹配
+    var byDisplayName = cache.staffObjects.find(function (s) {
+      return s.name && myDisplayName && s.name === myDisplayName;
+    });
+    return byDisplayName ? byDisplayName.id : null;
+  }
+
   /* ===== 写操作：记录 ===== */
 
   // 添加记录
@@ -472,17 +502,29 @@ var DataLayer = (function () {
       return { error: { message: '记录不存在' } };
     }
     var record = cache.records[idx];
+    // ===== v5.4.6-fix: 身份校验改为 UUID 比（staff.id），不再用 name 字符串（空格/大小写陷阱 + profile 关联不一致）=====
+    var myStaffId = getMyStaffId();
     var myName = getMyStaffName();
-    var isRecipient = record.staff === myName;
+    var isRecipient = (record._staffId && myStaffId && record._staffId === myStaffId);
+    // 兼容降级：若 UUID 双方任一方为空（localStorage 模式或老数据），才退回 name 字符串比
+    if (!isRecipient && (!record._staffId || !myStaffId)) {
+      isRecipient = (record.staff === myName);
+    }
     var isMgr = isManager();
     if (!isRecipient && !isMgr) {
-      console.warn('[approveTransfer v5.4] 权限拒绝：caller=' + myName +
-                   ' recipient=' + record.staff + ' isManager=' + isMgr);
+      console.warn('[approveTransfer v5.4.6] 权限拒绝：caller=' + myName +
+                   ' (staffId=' + myStaffId + ')' +
+                   ' recipient=' + record.staff +
+                   ' (record._staffId=' + record._staffId + ')' +
+                   ' isManager=' + isMgr);
       return { error: { message: '只有被过渡人本人或店长才能审批' } };
     }
     if (record.transferStatus !== 'pending') {
       return { error: { message: '该记录状态已变更，无需重复审批' } };
     }
+    console.info('[approveTransfer v5.4.6] 身份校验通过：caller=' + myName +
+                 ' (staffId=' + myStaffId + ')' +
+                 ' 角色=' + (isMgr ? '店长' : '被过渡人本人'));
 
     if (!useSupabase) {
       cache.records[idx].transferStatus = 'approved';
@@ -520,23 +562,33 @@ var DataLayer = (function () {
 
   // ===== v5.4-fix P0-2: 审批拒绝（不删除，业绩退回给发起者）=====
   async function rejectTransfer(recordId) {
-    // ===== P0-1: 身份校验 =====
+    // ===== P0-1: 身份校验（v5.4.6 UUID 匹配）=====
     var idx = cache.records.findIndex(function (r) { return r.id === recordId; });
     if (idx < 0) {
       return { error: { message: '记录不存在' } };
     }
     var record = cache.records[idx];
+    var myStaffId = getMyStaffId();
     var myName = getMyStaffName();
-    var isRecipient = record.staff === myName;
+    var isRecipient = (record._staffId && myStaffId && record._staffId === myStaffId);
+    if (!isRecipient && (!record._staffId || !myStaffId)) {
+      isRecipient = (record.staff === myName);
+    }
     var isMgr = isManager();
     if (!isRecipient && !isMgr) {
-      console.warn('[rejectTransfer v5.4] 权限拒绝：caller=' + myName +
-                   ' recipient=' + record.staff + ' isManager=' + isMgr);
+      console.warn('[rejectTransfer v5.4.6] 权限拒绝：caller=' + myName +
+                   ' (staffId=' + myStaffId + ')' +
+                   ' recipient=' + record.staff +
+                   ' (record._staffId=' + record._staffId + ')' +
+                   ' isManager=' + isMgr);
       return { error: { message: '只有被过渡人本人或店长才能拒绝' } };
     }
     if (record.transferStatus !== 'pending') {
       return { error: { message: '该记录状态已变更，无需重复操作' } };
     }
+    console.info('[rejectTransfer v5.4.6] 身份校验通过：caller=' + myName +
+                 ' (staffId=' + myStaffId + ')' +
+                 ' 角色=' + (isMgr ? '店长' : '被过渡人本人'));
 
     // ===== P0-2: 业绩退回，不删除 =====
     var originalFrom = record.transferFrom || '';
@@ -601,10 +653,13 @@ var DataLayer = (function () {
   function canDeleteRecord(record) {
     if (!useSupabase) return true;
     if (isManager()) return true;
+    var myStaffId = getMyStaffId();
     var myName = getMyStaffName();
-    // 自己添加给自己的记录可以删
-    if (record.staff === myName && (!record.transferFrom || record.transferFrom === myName)) return true;
-    // 过渡者（发起人）可以删除
+    // 自己添加给自己的记录可以删（优先 UUID，降级 name）
+    var isOwn = (record._staffId && myStaffId && record._staffId === myStaffId);
+    if (!isOwn && (!record._staffId || !myStaffId)) isOwn = (record.staff === myName);
+    if (isOwn && (!record.transferFrom || record.transferFrom === myName)) return true;
+    // 过渡者（发起人）可以删除（transfer_from 是名字符串，无法用 UUID）
     if (record.transferFrom === myName) return true;
     // 被过渡人不能删除别人过渡给他的记录
     return false;
@@ -900,6 +955,7 @@ var DataLayer = (function () {
     isManager: isManager,
     isSupaMode: isSupaMode,
     getMyStaffName: getMyStaffName,
+    getMyStaffId: getMyStaffId,
     // 异步写入
     addRecord: addRecord,
     removeRecord: removeRecord,
