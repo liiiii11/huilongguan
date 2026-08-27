@@ -890,13 +890,19 @@ var App = (function () {
         toast(res.error.message || '操作失败，请重试', 'error');
         return;
       }
+      // ===== v5.4.5-fix: 审批成功后从 DB 重新拉一次真实数据 =====
+      // 防止过去那种 UPDATE 0 rows 假成功本地 cache，刷新后又变回 pending 的问题
+      if (DataLayer.isSupaMode()) {
+        try { await DataLayer.refresh(); }
+        catch (e) { console.warn('[approveTransfer] refresh error:', e.message); }
+      }
       toast('已同意过渡', 'success');
       renderPendingTransfers();
       renderCalendar();
       renderMonthSummary();
       renderDayDetail();
     } catch (e) {
-      toast('操作失败，请重试', 'error');
+      toast('操作失败，请重试：' + (e.message || ''), 'error');
     }
   }
 
@@ -910,13 +916,18 @@ var App = (function () {
           toast(res.error.message || '操作失败，请重试', 'error');
           return;
         }
+        // ===== v5.4.5-fix: 拒绝成功后 refresh 真实 DB 数据 =====
+        if (DataLayer.isSupaMode()) {
+          try { await DataLayer.refresh(); }
+          catch (e) { console.warn('[rejectTransfer] refresh error:', e.message); }
+        }
         toast('已拒绝过渡，业绩已退回发起人', 'success');
         renderPendingTransfers();
         renderCalendar();
         renderMonthSummary();
         renderDayDetail();
       } catch (e) {
-        toast('操作失败，请重试', 'error');
+        toast('操作失败，请重试：' + (e.message || ''), 'error');
       }
     });
   }

@@ -484,20 +484,38 @@ var DataLayer = (function () {
       return { error: { message: '该记录状态已变更，无需重复审批' } };
     }
 
-    // 更新缓存
-    cache.records[idx].transferStatus = 'approved';
-
-    if (!useSupabase) return { error: null };
-
-    var result = await SupaAuth.getClient().from('records')
-      .update({ transfer_status: 'approved' }).eq('id', recordId);
-
-    // 如果 transfer_status 列不存在，提示用户运行 SQL 更新
-    if (result.error && result.error.message && result.error.message.indexOf('transfer_status') >= 0) {
-      return { error: { message: '请先在 Supabase 中运行 update-v4.sql 添加 transfer_status 字段' } };
+    if (!useSupabase) {
+      cache.records[idx].transferStatus = 'approved';
+      localStorage.setItem(SK_RECORDS, JSON.stringify(cache.records));
+      return { error: null };
     }
 
-    return { error: result.error };
+    // ===== v5.4.5-fix: UPDATE + .select('*') 校验 RLS 是否真的放行（非 0 rows）=====
+    var result = await SupaAuth.getClient().from('records')
+      .update({ transfer_status: 'approved' })
+      .eq('id', recordId)
+      .select('*')
+      .single();
+
+    if (result.error) {
+      // transfer_status 列缺失 → 提示 SQL
+      if (result.error.message && result.error.message.indexOf('transfer_status') >= 0) {
+        return { error: { message: '请先在 Supabase 中运行 update-v4.sql 添加 transfer_status 字段' } };
+      }
+      // 其他真实错误（RLS/权限/网络）
+      console.error('[approveTransfer v5.4.5] UPDATE error:', result.error.code, result.error.message);
+      return { error: result.error };
+    }
+    // ===== v5.4.5-fix: UPDATE 0 rows → 静默假成功的元凶，现在明确报错 =====
+    if (!result.data) {
+      console.warn('[approveTransfer v5.4.5] UPDATE 0 rows（RLS 拒绝或 id 不匹配）。' +
+        '若刚上线请确认已在 Supabase 运行 update-v5.4.5-transfer-rls.sql');
+      return { error: { message: '审批失败（数据库策略未生效）。请联系店长在 Supabase 运行 update-v5.4.5-transfer-rls.sql 脚本' } };
+    }
+
+    // UPDATE 真实成功：同步缓存
+    cache.records[idx].transferStatus = 'approved';
+    return { error: null };
   }
 
   // ===== v5.4-fix P0-2: 审批拒绝（不删除，业绩退回给发起者）=====
@@ -521,42 +539,61 @@ var DataLayer = (function () {
     }
 
     // ===== P0-2: 业绩退回，不删除 =====
-    // 把 staff 改回 transferFrom，transferStatus 标记为 rejected
-    // 同时清空 transferFrom 让它在发起人那边看起来像一条普通记录
     var originalFrom = record.transferFrom || '';
-    cache.records[idx].staff = originalFrom;
-    cache.records[idx].transferStatus = 'rejected';
-    // 保留 transferFrom 字段作为历史溯源，但不再参与业务计算
-    // （getMyOutgoingTransfers/getPendingTransfers 都只认 transferStatus=pending）
+    var fromStaffObj = cache.staffObjects.find(function (s) { return s.name === originalFrom; });
 
     if (!useSupabase) {
+      cache.records[idx].staff = originalFrom;
+      cache.records[idx].transferStatus = 'rejected';
       localStorage.setItem(SK_RECORDS, JSON.stringify(cache.records));
       return { error: null };
     }
 
-    var shopId = cache.profile.shop_id;
-    var fromStaffObj = cache.staffObjects.find(function (s) { return s.name === originalFrom; });
     var updateData = {
       transfer_status: 'rejected',
       staff_id: fromStaffObj ? fromStaffObj.id : null
     };
 
+    // ===== v5.4.5-fix: UPDATE + select 校验 0 rows =====
     var result = await SupaAuth.getClient().from('records')
-      .update(updateData).eq('id', recordId);
+      .update(updateData)
+      .eq('id', recordId)
+      .select('*')
+      .single();
 
     // 如果 transfer_status 列不存在，尝试只更新 staff_id
     if (result.error && result.error.message && result.error.message.indexOf('transfer_status') >= 0) {
       delete updateData.transfer_status;
       result = await SupaAuth.getClient().from('records')
-        .update(updateData).eq('id', recordId);
+        .update(updateData)
+        .eq('id', recordId)
+        .select('*')
+        .single();
     }
     // 如果 staff_id 也不存在（老 schema），至少把缓存改了
     if (result.error && result.error.message && result.error.message.indexOf('staff_id') >= 0) {
       console.warn('[rejectTransfer v5.4] staff_id 列不存在，仅更新前端缓存');
+      cache.records[idx].staff = originalFrom;
+      cache.records[idx].transferStatus = 'rejected';
       return { error: null };
     }
 
-    return { error: result.error };
+    // 其他真实错误
+    if (result.error) {
+      console.error('[rejectTransfer v5.4.5] UPDATE error:', result.error.code, result.error.message);
+      return { error: result.error };
+    }
+    // v5.4.5-fix: UPDATE 0 rows 检测
+    if (!result.data) {
+      console.warn('[rejectTransfer v5.4.5] UPDATE 0 rows（RLS 拒绝或 id 不匹配）。' +
+        '请确认已在 Supabase 运行 update-v5.4.5-transfer-rls.sql');
+      return { error: { message: '拒绝失败（数据库策略未生效）。请联系店长在 Supabase 运行 update-v5.4.5-transfer-rls.sql 脚本' } };
+    }
+
+    // 真实成功：同步缓存
+    cache.records[idx].staff = originalFrom;
+    cache.records[idx].transferStatus = 'rejected';
+    return { error: null };
   }
 
   // 检查当前用户是否可以删除某条记录
