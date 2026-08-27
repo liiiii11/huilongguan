@@ -61,14 +61,33 @@ var App = (function () {
   function loadStaff() { return DataLayer.loadStaff(); }
   function loadTypes() { return DataLayer.loadTypes(); }
 
-  /* ===== 权限过滤：普通员工只能看到自己的记录 ===== */
+  /* ===== v5.4-fix P0-4/P0-5: 过渡记录统一视角 helper ===== */
+  // 业绩归属人：pending 状态下算给发起人（钱还没同意给对方），其他状态算给 staff（最终归属人）
+  function getRecordEffectiveOwner(r) {
+    if (!r) return '';
+    var status = r.transferStatus || 'approved';
+    var from = r.transferFrom || '';
+    if (status === 'pending' && from && from !== r.staff) {
+      return from;
+    }
+    return r.staff || '';
+  }
+  // 当前查看视角人：店长查看全店时返回 ''（表示不过滤人），店员视角返回本人名
+  function getCurrentViewOwner() {
+    if (DataLayer.isManager() || !DataLayer.isSupaMode()) return '';
+    return DataLayer.getMyStaffName() || '';
+  }
+
+  /* ===== 权限过滤：普通员工可见记录 =====
+   * v5.4 之前：仅看得到「staff=我 且 非 pending」→ 我发起的过渡在日历/月汇总里凭空消失 (P0-4)
+   * v5.4 之后：可见 = staff=我（含待我审批的）OR transferFrom=我（我发起的任何状态，含 pending）——可见性与业绩归属解耦
+   */
   function getVisibleRecords() {
     var all = loadRecords();
     if (DataLayer.isManager() || !DataLayer.isSupaMode()) return all;
-    // 普通员工：只返回自己的记录（排除待审批的过渡记录）
     var myName = DataLayer.getMyStaffName();
-    return all.filter(function (r) { 
-      return r.staff === myName && r.transferStatus !== 'pending';
+    return all.filter(function (r) {
+      return (r.staff === myName) || (r.transferFrom === myName);
     });
   }
 
@@ -77,7 +96,7 @@ var App = (function () {
     var all = loadRecords();
     if (!DataLayer.isSupaMode()) return [];
     var myName = DataLayer.getMyStaffName();
-    return all.filter(function (r) { 
+    return all.filter(function (r) {
       return r.transferFrom === myName && r.staff !== myName;
     });
   }
@@ -300,6 +319,11 @@ var App = (function () {
     label.textContent = calYear + '年' + (calMonth + 1) + '月';
 
     var records = getVisibleRecords();
+    // ===== v5.4-fix P0-4: 店员视角按 effectiveOwner 再过滤，pending 过渡不悬空 =====
+    var viewOwner = getCurrentViewOwner();
+    if (viewOwner) {
+      records = records.filter(function (r) { return getRecordEffectiveOwner(r) === viewOwner; });
+    }
     var earnMap = {};
     records.forEach(function (r) {
       if (!earnMap[r.date]) earnMap[r.date] = 0;
@@ -363,6 +387,11 @@ var App = (function () {
   function renderMonthSummary() {
     var ym = calYear + '-' + p2(calMonth + 1);
     var records = getVisibleRecords().filter(function (r) { return r.date.startsWith(ym); });
+    // ===== v5.4-fix P0-4: 店员视角按 effectiveOwner 过滤，pending 过渡正确归属发起人 =====
+    var viewOwner = getCurrentViewOwner();
+    if (viewOwner) {
+      records = records.filter(function (r) { return getRecordEffectiveOwner(r) === viewOwner; });
+    }
     var totalAmount = records.reduce(function (s, r) { return s + (r.amount || 0); }, 0);
     var totalComm = records.reduce(function (s, r) { return s + (r.commission || 0); }, 0);
 
@@ -399,8 +428,15 @@ var App = (function () {
     var typeMap = {};
     types.forEach(function (t) { typeMap[t.id] = t; });
 
-    // 日总额只计算自己的记录（不含过渡给别人的）
-    var totalAmount = ownRecords.reduce(function (s, r) { return s + (r.amount || 0); }, 0);
+    // ===== v5.4-fix P0-4: 日总额按 effectiveOwner 归属 =====
+    // 店长视角：ownRecords 已是全店 → 直接合计整店当天
+    // 店员视角：pending 过渡（接收人=我）不算我业绩；我发起的 pending 算我业绩
+    var totalRecords = ownRecords;
+    var viewOwner = getCurrentViewOwner();
+    if (viewOwner) {
+      totalRecords = totalRecords.filter(function (r) { return getRecordEffectiveOwner(r) === viewOwner; });
+    }
+    var totalAmount = totalRecords.reduce(function (s, r) { return s + (r.amount || 0); }, 0);
 
     var dParts = selectedDate.split('-');
     var displayDate = parseInt(dParts[1]) + '月' + parseInt(dParts[2]) + '日';
@@ -1310,7 +1346,9 @@ var App = (function () {
     var subVal = subFilter ? subFilter.value : '';
 
     if (sVal) {
-      records = records.filter(function (r) { return r.staff === sVal; });
+      // ===== v5.4-fix P0-5: 人员筛选按 effectiveOwner 匹配 =====
+      // 选 A 则包含：A 发起的 pending（归属 A） + 归属 A 本身已审批/拒绝的所有记录
+      records = records.filter(function (r) { return getRecordEffectiveOwner(r) === sVal; });
     }
     if (cVal) {
       records = records.filter(function (r) { return r.typeId === cVal; });
