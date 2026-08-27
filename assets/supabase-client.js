@@ -194,6 +194,64 @@ var SupaAuth = (function () {
     }
   }
 
+  // ===== v5.4.4-fix: 发送密码重置邮件（忘记密码） =====
+  async function resetPassword(email) {
+    if (!client) return { error: { message: 'Supabase 未初始化' } };
+    try {
+      // redirectTo：重置链接跳回本网站主页，页面加载时检测 recovery token 弹改密框
+      var siteUrl = (window && window.location && window.location.origin)
+        ? window.location.origin + (window.location.pathname || '/')
+        : null;
+      var opts = siteUrl ? { redirectTo: siteUrl } : {};
+      var result = await client.auth.resetPasswordForEmail(email, opts);
+      if (result && result.error) {
+        console.error('[SupaAuth.resetPassword] ERROR:', result.error.code, result.error.message);
+      }
+      return result;
+    } catch (e) {
+      var ne = _normError(e);
+      console.error('[SupaAuth.resetPassword] THREW:', ne.message);
+      return { error: ne };
+    }
+  }
+
+  // ===== v5.4.4-fix: 用户已进入 recovery 状态（URL 含 recovery token 已生效），设置新密码 =====
+  async function updateUserPassword(newPassword) {
+    if (!client) return { error: { message: 'Supabase 未初始化' } };
+    try {
+      var result = await client.auth.updateUser({ password: newPassword });
+      if (result && result.error) {
+        console.error('[SupaAuth.updateUserPassword] ERROR:', result.error.code, result.error.message);
+      }
+      return result;
+    } catch (e) {
+      var ne = _normError(e);
+      console.error('[SupaAuth.updateUserPassword] THREW:', ne.message);
+      return { error: ne };
+    }
+  }
+
+  // ===== v5.4.4-fix: 读取当前 URL hash 中的 Supabase Auth event/access_token =====
+  //        Supabase 重置链接跳转回网站时会把 access_token+type=recovery 放在 # 后面
+  function getRecoveryTokenFromUrl() {
+    try {
+      if (!window || !window.location || !window.location.hash) return null;
+      // hash 形如 #access_token=...&refresh_token=...&expires_in=...&token_type=bearer&type=recovery
+      var hash = window.location.hash.replace(/^#/, '');
+      if (!hash) return null;
+      var params = {};
+      hash.split('&').forEach(function (kv) {
+        var i = kv.indexOf('=');
+        if (i <= 0) return;
+        params[decodeURIComponent(kv.slice(0, i))] = decodeURIComponent(kv.slice(i + 1));
+      });
+      if (params.type === 'recovery' && params.access_token) {
+        return { accessToken: params.access_token, params: params };
+      }
+    } catch (e) { /* ignore */ }
+    return null;
+  }
+
   // 把 RPC 抛出的各种异常统一规范化为带 message 的 Error，保证前端可以直接 .message 访问
   function _normError(e) {
     if (!e) return { message: '未知错误' };
@@ -254,6 +312,9 @@ var SupaAuth = (function () {
     signUp: signUp,
     signIn: signIn,
     signOut: signOut,
+    resetPassword: resetPassword,
+    updateUserPassword: updateUserPassword,
+    getRecoveryTokenFromUrl: getRecoveryTokenFromUrl,
     createShop: createShop,
     joinShop: joinShop,
     onAuthChange: onAuthChange

@@ -1628,7 +1628,13 @@ var App = (function () {
         var loginResult = await SupaAuth.signIn(email, password);
         if (loginResult.error) {
           console.error('[doAuth] signIn error:', loginResult.error);
-          toast(loginResult.error.message || '登录失败', 'error');
+          var lMsg = String(loginResult.error.message || '');
+          // ===== v5.4.4-fix: 无效凭据提示带忘记密码入口 =====
+          if (/invalid.*password|password.*invalid|invalid\s+credentials|账号或密码|密码错误/i.test(lMsg)) {
+            toast('账号或密码不正确 💡 可以点「忘记密码？」重置', 'error', 10000);
+          } else {
+            toast(lMsg || '登录失败', 'error');
+          }
           return;
         }
         toast('登录成功！', 'success');
@@ -1838,6 +1844,173 @@ var App = (function () {
     });
   }
 
+  /* ===== v5.4.4-fix: 忘记密码 / 重置密码 ===== */
+
+  function _buildMaskedModal(title, innerHtml, footerHtml) {
+    var overlay = document.createElement('div');
+    overlay.id = 'app-modal-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;';
+    var card = document.createElement('div');
+    card.style.cssText = 'width:100%;max-width:420px;background:#fff;border-radius:14px;box-shadow:0 20px 45px rgba(15,23,42,.22);overflow:hidden;';
+    var head = document.createElement('div');
+    head.style.cssText = 'padding:16px 18px;border-bottom:1px solid #f1f5f9;font-weight:700;font-size:16px;color:#0f172a;display:flex;align-items:center;justify-content:space-between;';
+    head.innerHTML = '<span>' + title + '</span>' +
+      '<button id="app-modal-close" style="background:transparent;border:none;font-size:20px;color:#94a3b8;cursor:pointer;padding:2px 8px;">×</button>';
+    var body = document.createElement('div');
+    body.style.cssText = 'padding:18px;';
+    body.innerHTML = innerHtml;
+    var footer = document.createElement('div');
+    footer.style.cssText = 'padding:0 18px 18px 18px;';
+    footer.innerHTML = footerHtml || '';
+    card.appendChild(head);
+    card.appendChild(body);
+    card.appendChild(footer);
+    overlay.appendChild(card);
+    // 点击遮罩关闭
+    overlay.addEventListener('click', function (e) {
+      if (e.target.id === 'app-modal-overlay') overlay.remove();
+    });
+    setTimeout(function () {
+      var cb = document.getElementById('app-modal-close');
+      if (cb) cb.addEventListener('click', function () { overlay.remove(); });
+    }, 0);
+    document.body.appendChild(overlay);
+    return overlay;
+  }
+
+  function openForgotPwdModal(preEmail) {
+    var emailVal = (preEmail || '').replace(/"/g, '&quot;');
+    var inner =
+      '<p style="margin:0 0 12px;color:#475569;font-size:14px;line-height:1.6;">输入注册邮箱，我们会发送一封密码重置邮件给你。<br>收到邮件后点击链接即可设置新密码。</p>' +
+      '<label style="display:block;margin-bottom:6px;font-size:13px;color:#334155;font-weight:600;">邮箱</label>' +
+      '<input id="forgot-email" type="email" value="' + emailVal + '" placeholder="your@email.com" autocomplete="email" style="width:100%;padding:11px 12px;border:1px solid #e2e8f0;border-radius:9px;font-size:15px;outline:none;box-sizing:border-box;">' +
+      '<p id="forgot-msg" style="margin:10px 2px 0;font-size:13px;color:#64748b;min-height:18px;"></p>';
+    var footer =
+      '<button id="forgot-cancel" style="width:48%;padding:11px;border:1px solid #e2e8f0;background:#fff;color:#334155;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;">取消</button>' +
+      '<button id="forgot-send" style="width:48%;padding:11px;border:none;background:linear-gradient(135deg,#10b981,#059669);color:#fff;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;float:right;">发送重置邮件</button>' +
+      '<div style="clear:both;"></div>';
+    var overlay = _buildMaskedModal('🔑 找回密码', inner, footer);
+    setTimeout(function () {
+      var input = document.getElementById('forgot-email');
+      if (input) input.focus();
+      var btnCancel = document.getElementById('forgot-cancel');
+      if (btnCancel) btnCancel.addEventListener('click', function () { overlay.remove(); });
+      var btnSend = document.getElementById('forgot-send');
+      if (btnSend) btnSend.addEventListener('click', function () {
+        doSendResetEmail(overlay);
+      });
+      var inputEl = document.getElementById('forgot-email');
+      if (inputEl) inputEl.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') doSendResetEmail(overlay);
+      });
+    }, 0);
+  }
+
+  async function doSendResetEmail(overlay) {
+    var input = document.getElementById('forgot-email');
+    var msg = document.getElementById('forgot-msg');
+    var btnSend = document.getElementById('forgot-send');
+    var btnCancel = document.getElementById('forgot-cancel');
+    var email = input ? input.value.trim() : '';
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      if (msg) { msg.style.color = '#dc2626'; msg.textContent = '请输入正确的邮箱地址'; }
+      return;
+    }
+    if (btnSend) { btnSend.disabled = true; btnSend.textContent = '发送中...'; btnSend.style.opacity = '0.7'; }
+    if (btnCancel) btnCancel.disabled = true;
+    try {
+      var res = await SupaAuth.resetPassword(email);
+      if (res && res.error) {
+        if (msg) { msg.style.color = '#dc2626'; msg.textContent = '发送失败：' + (res.error.message || '未知错误'); }
+        return;
+      }
+      // 成功：清空 URL hash（避免误触发 recovery 改密）
+      try { if (window.history && window.history.replaceState) window.history.replaceState(null, '', window.location.pathname + window.location.search); } catch (e) {}
+      if (msg) { msg.style.color = '#059669'; msg.textContent = '✅ 重置邮件已发送！请查看邮箱点击链接设置新密码（注意垃圾箱）'; }
+      if (btnSend) { btnSend.textContent = '已发送 ✓'; btnSend.style.opacity = '1'; }
+      setTimeout(function () { if (overlay && overlay.parentNode) overlay.remove(); }, 3500);
+    } catch (e) {
+      if (msg) { msg.style.color = '#dc2626'; msg.textContent = '发送失败：' + (e.message || '网络错误'); }
+    } finally {
+      if (btnCancel) btnCancel.disabled = false;
+      if (btnSend && /发送中/.test(btnSend.textContent)) { btnSend.disabled = false; btnSend.textContent = '发送重置邮件'; btnSend.style.opacity = '1'; }
+    }
+  }
+
+  function openRecoveryPwdModal() {
+    var inner =
+      '<p style="margin:0 0 12px;color:#475569;font-size:14px;line-height:1.6;">✅ 验证通过！请设置你的新密码（至少 6 位）。</p>' +
+      '<label style="display:block;margin-bottom:6px;font-size:13px;color:#334155;font-weight:600;">新密码</label>' +
+      '<input id="recovery-pwd1" type="password" placeholder="至少 6 位" autocomplete="new-password" style="width:100%;padding:11px 12px;border:1px solid #e2e8f0;border-radius:9px;font-size:15px;outline:none;box-sizing:border-box;">' +
+      '<label style="display:block;margin:12px 0 6px;font-size:13px;color:#334155;font-weight:600;">确认新密码</label>' +
+      '<input id="recovery-pwd2" type="password" placeholder="再输入一次" autocomplete="new-password" style="width:100%;padding:11px 12px;border:1px solid #e2e8f0;border-radius:9px;font-size:15px;outline:none;box-sizing:border-box;">' +
+      '<p id="recovery-msg" style="margin:10px 2px 0;font-size:13px;color:#64748b;min-height:18px;"></p>';
+    var footer =
+      '<button id="recovery-cancel" style="width:48%;padding:11px;border:1px solid #e2e8f0;background:#fff;color:#334155;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;">取消</button>' +
+      '<button id="recovery-submit" style="width:48%;padding:11px;border:none;background:linear-gradient(135deg,#6366f1,#4f46e5);color:#fff;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;float:right;">设置新密码</button>' +
+      '<div style="clear:both;"></div>';
+    var overlay = _buildMaskedModal('🛡️ 重置密码（已验证）', inner, footer);
+    setTimeout(function () {
+      var p1 = document.getElementById('recovery-pwd1');
+      if (p1) p1.focus();
+      var btnCancel = document.getElementById('recovery-cancel');
+      if (btnCancel) btnCancel.addEventListener('click', function () {
+        // 取消 recovery：清空 hash，保持原页面
+        try { if (window.history && window.history.replaceState) window.history.replaceState(null, '', window.location.pathname + window.location.search); } catch (e) {}
+        overlay.remove();
+      });
+      var btnSubmit = document.getElementById('recovery-submit');
+      if (btnSubmit) btnSubmit.addEventListener('click', function () {
+        doSetNewPassword(overlay);
+      });
+      ['recovery-pwd1', 'recovery-pwd2'].forEach(function (id) {
+        var el = document.getElementById(id);
+        if (el) el.addEventListener('keydown', function (e) {
+          if (e.key === 'Enter') doSetNewPassword(overlay);
+        });
+      });
+    }, 0);
+  }
+
+  async function doSetNewPassword(overlay) {
+    var p1 = document.getElementById('recovery-pwd1');
+    var p2 = document.getElementById('recovery-pwd2');
+    var msg = document.getElementById('recovery-msg');
+    var btnSubmit = document.getElementById('recovery-submit');
+    var btnCancel = document.getElementById('recovery-cancel');
+    var np = p1 ? p1.value : '';
+    var np2 = p2 ? p2.value : '';
+    if (!np || np.length < 6) { if (msg) { msg.style.color = '#dc2626'; msg.textContent = '密码至少 6 位'; } return; }
+    if (np !== np2) { if (msg) { msg.style.color = '#dc2626'; msg.textContent = '两次输入的新密码不一致'; } return; }
+    if (btnSubmit) { btnSubmit.disabled = true; btnSubmit.textContent = '处理中...'; btnSubmit.style.opacity = '0.7'; }
+    if (btnCancel) btnCancel.disabled = true;
+    try {
+      var res = await SupaAuth.updateUserPassword(np);
+      if (res && res.error) {
+        if (msg) { msg.style.color = '#dc2626'; msg.textContent = '修改失败：' + (res.error.message || '未知错误'); }
+        return;
+      }
+      // 成功：清空 URL hash，提示成功，然后切回登录页
+      try { if (window.history && window.history.replaceState) window.history.replaceState(null, '', window.location.pathname + window.location.search); } catch (e) {}
+      if (msg) { msg.style.color = '#059669'; msg.textContent = '✅ 密码修改成功！即将跳转到登录页...'; }
+      if (btnSubmit) { btnSubmit.textContent = '成功 ✓'; btnSubmit.style.opacity = '1'; }
+      setTimeout(function () {
+        if (overlay && overlay.parentNode) overlay.remove();
+        // 如果 Supabase 让用户保持 recovery 状态（已登录），先 signOut 回登录页，避免用 recovery 态进系统
+        SupaAuth.signOut().catch(function () {}).finally(function () {
+          showAuthPage();
+          switchAuthTab('login');
+          toast('🎉 密码已更新，请使用新密码登录', 'success', 6000);
+        });
+      }, 1600);
+    } catch (e) {
+      if (msg) { msg.style.color = '#dc2626'; msg.textContent = '修改失败：' + (e.message || '网络错误'); }
+    } finally {
+      if (btnCancel) btnCancel.disabled = false;
+      if (btnSubmit && /处理中/.test(btnSubmit.textContent)) { btnSubmit.disabled = false; btnSubmit.textContent = '设置新密码'; btnSubmit.style.opacity = '1'; }
+    }
+  }
+
   /* ===== Init ===== */
   async function init() {
     // 如果 Supabase 未配置，降级到 localStorage 单用户模式
@@ -1851,6 +2024,23 @@ var App = (function () {
       renderCalendar();
       renderMonthSummary();
       renderDayDetail();
+      return;
+    }
+
+    // ===== v5.4.4-fix: 页面从"密码重置邮件链接"跳转回来 → URL hash 带 type=recovery
+    // 优先弹出"设置新密码"框（用户未进入业务，先改密码）
+    var recovery = null;
+    try {
+      recovery = SupaAuth.getRecoveryTokenFromUrl ? SupaAuth.getRecoveryTokenFromUrl() : null;
+    } catch (e) { console.warn('[App.init] recovery detection error:', e); }
+    if (recovery) {
+      console.info('[App.init] detected recovery token → open reset password modal');
+      // Supabase-js 在遇到 recovery hash 时会自动 setSession，此时 updateUser 即可生效
+      // 延迟一帧确保 auth.onAuthStateChange 走完
+      showAuthPage();
+      setTimeout(function () {
+        openRecoveryPwdModal();
+      }, 200);
       return;
     }
 
@@ -1940,7 +2130,10 @@ var App = (function () {
     switchSetupTab: switchSetupTab,
     doAuth: doAuth,
     doSetup: doSetup,
-    doLogout: doLogout
+    doLogout: doLogout,
+    // v5.4.4-fix: 忘记密码 / 重置密码
+    openForgotPwdModal: openForgotPwdModal,
+    openRecoveryPwdModal: openRecoveryPwdModal
   };
 })();
 
