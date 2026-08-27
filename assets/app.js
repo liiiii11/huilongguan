@@ -1452,6 +1452,7 @@ var App = (function () {
     if (submitText) submitText.textContent = mode === 'create' ? '创建店铺' : '加入店铺';
   }
 
+  // v5-fix: doAuth 改 finally 兜底，所有 return/throw 都会重置按钮
   async function doAuth() {
     var email = document.getElementById('auth-email').value.trim();
     var password = document.getElementById('auth-password').value;
@@ -1461,25 +1462,22 @@ var App = (function () {
     if (!password || password.length < 6) { toast('密码至少6位', 'error'); return; }
 
     var btn = document.getElementById('auth-submit');
+    var originalText = btn.textContent;
     btn.disabled = true;
     btn.textContent = '处理中...';
 
     try {
       if (authMode === 'register') {
-        if (!displayName) { toast('请输入昵称', 'error'); btn.disabled = false; btn.textContent = '注册'; return; }
+        if (!displayName) { toast('请输入昵称', 'error'); return; }
         var regResult = await SupaAuth.signUp(email, password, displayName);
         if (regResult.error) {
+          console.error('[doAuth] signUp error:', regResult.error);
           toast(regResult.error.message || '注册失败', 'error');
-          btn.disabled = false;
-          btn.textContent = '注册';
           return;
         }
-        // 检查是否需要邮箱验证
         if (!regResult.data.session) {
           toast('注册成功！请检查邮箱完成验证后再登录', 'success');
           switchAuthTab('login');
-          btn.disabled = false;
-          btn.textContent = '登录';
           document.getElementById('auth-email').value = email;
           return;
         }
@@ -1488,69 +1486,96 @@ var App = (function () {
       } else {
         var loginResult = await SupaAuth.signIn(email, password);
         if (loginResult.error) {
+          console.error('[doAuth] signIn error:', loginResult.error);
           toast(loginResult.error.message || '登录失败', 'error');
-          btn.disabled = false;
-          btn.textContent = '登录';
           return;
         }
         toast('登录成功！', 'success');
         await initAfterAuth();
       }
     } catch (e) {
+      console.error('[doAuth] THREW:', e && e.message, e && e.stack);
       toast('错误：' + (e.message || '网络错误，请重试'), 'error');
+    } finally {
+      // v5-fix: 无论成功/失败/异常，都一定重置按钮
       btn.disabled = false;
-      btn.textContent = authMode === 'login' ? '登录' : '注册';
+      btn.textContent = originalText && originalText !== '处理中...' ? originalText : (authMode === 'login' ? '登录' : '注册');
+      // 全局兜底（猴子补丁里的函数，存在即调用）
+      if (typeof window.resetLoading === 'function') window.resetLoading();
     }
   }
 
+  // v5-fix: doSetup 改 finally 兜底，修复「加入成功后一直处理中」的问题
   async function doSetup() {
     var displayName = document.getElementById('setup-display-name').value.trim();
     if (!displayName) { toast('请输入你的昵称', 'error'); return; }
 
     var btn = document.getElementById('setup-submit');
+    var originalText = setupMode === 'create' ? '创建店铺' : '加入店铺';
     btn.disabled = true;
     btn.textContent = '处理中...';
 
     try {
       if (setupMode === 'create') {
         var shopName = document.getElementById('setup-shop-name').value.trim();
-        if (!shopName) { toast('请输入店铺名称', 'error'); btn.disabled = false; btn.textContent = '创建店铺'; return; }
+        if (!shopName) { toast('请输入店铺名称', 'error'); return; }
         var result = await SupaAuth.createShop(shopName, displayName);
         if (result.error) {
+          console.error('[doSetup] createShop error:', result.error);
           toast(result.error.message || '创建失败', 'error');
-          btn.disabled = false;
-          btn.textContent = '创建店铺';
           return;
         }
-        toast('店铺创建成功！', 'success');
+        toast('店铺创建成功！正在加载...', 'success');
         await initAfterAuth();
       } else {
         var joinCode = document.getElementById('setup-join-code').value.trim();
-        if (!joinCode) { toast('请输入邀请码', 'error'); btn.disabled = false; btn.textContent = '加入店铺'; return; }
+        if (!joinCode) { toast('请输入邀请码', 'error'); return; }
         var joinResult = await SupaAuth.joinShop(joinCode, displayName);
         if (joinResult.error) {
+          console.error('[doSetup] joinShop error:', joinResult.error);
           toast(joinResult.error.message || '加入失败，请检查邀请码', 'error');
-          btn.disabled = false;
-          btn.textContent = '加入店铺';
           return;
         }
-        toast('加入成功！', 'success');
+        toast('加入成功！正在加载店铺数据...', 'success');
         await initAfterAuth();
       }
     } catch (e) {
-      toast('网络错误，请重试', 'error');
+      console.error('[doSetup] THREW (this is why spinner stuck before):', e && e.message, e && e.stack);
+      toast('处理失败：' + (e.message || '请刷新后重试'), 'error');
+    } finally {
+      // v5-fix: ★ 无论成功/失败/异常/return，都一定重置按钮 ★ —— 这就是修复卡 loading 的关键
       btn.disabled = false;
-      btn.textContent = setupMode === 'create' ? '创建店铺' : '加入店铺';
+      btn.textContent = originalText;
+      if (typeof window.resetLoading === 'function') window.resetLoading();
     }
   }
 
+  // v5-fix: initAfterAuth 加 try/catch，DataLayer.init() 即使内部降级也不会向外抛错卡死
   async function initAfterAuth() {
-    var result = await DataLayer.init();
-    if (result.mode === 'setup') {
-      showSetupPage();
-    } else if (result.mode === 'ready') {
-      showMainApp();
-      checkAndPromptMigration();
+    try {
+      var result = await DataLayer.init();
+      console.log('[initAfterAuth] DataLayer.init() returned:', result);
+      if (result.degraded) {
+        console.warn('[initAfterAuth] running in degraded mode, cache may be empty. Recommend user to refresh once. initError:', result.initError);
+      }
+      if (result.mode === 'setup') {
+        showSetupPage();
+      } else if (result.mode === 'ready') {
+        showMainApp();
+        try { checkAndPromptMigration(); } catch (e) { console.error('[initAfterAuth] migration prompt error:', e); }
+      } else if (result.mode === 'auth') {
+        // 理论上不会走到，这里兜底
+        console.warn('[initAfterAuth] got mode=auth, going to auth page');
+        showAuthPage();
+      } else if (result.mode === 'local') {
+        console.warn('[initAfterAuth] got mode=local, showing main app with local data');
+        showMainApp();
+      }
+    } catch (e) {
+      // v5-fix: 最后一道防线 —— DataLayer.init() 理论上已经不会向外 throw 了，但怕未来改代码又回退
+      console.error('[initAfterAuth] FATAL THREW (showing main page best-effort):', e && e.message);
+      try { showMainApp(); } catch (_) {}
+      toast('数据加载异常，请刷新页面', 'error');
     }
   }
 

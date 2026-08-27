@@ -1840,5 +1840,7 @@ if (typeof SUPABASE_CONFIG !== 'undefined' && (!SUPABASE_CONFIG.url || !SUPABASE
 <script src="assets/supabase-client.js?v=6"></script>
 <script src="assets/data-layer.js?v=6"></script>
 <script src="assets/app.js?v=6"></script>
+<!-- v5-fix: 防卡死补丁 —— 重写 init/joinShop 容错 + loading 全局兜底 reset -->
+<script src="assets/frontend-join-fix-patch.js?v=6"></script>
 </body>
 </html>

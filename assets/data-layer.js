@@ -29,57 +29,95 @@ var DataLayer = (function () {
   var SK_TYPES = 'sales_types_v5';
   var SK_STAFF = 'sales_staff_v5';
 
-  /* ===== 初始化 ===== */
+  /* ===== 初始化（v5-fix：最外层 try/catch，任何异常都降级返回，绝不向外抛错卡死 loading）===== */
   async function init() {
-    useSupabase = SupaAuth.init();
-    if (!useSupabase) {
-      // 降级到 localStorage 单用户模式
-      loadFromLocalStorage();
-      return { mode: 'local' };
+    try {
+      useSupabase = SupaAuth.init();
+      if (!useSupabase) {
+        loadFromLocalStorage();
+        return { mode: 'local' };
+      }
+
+      var session = await SupaAuth.getSession();
+      if (!session) return { mode: 'auth' };
+
+      // v5-fix: 即使 getProfile 返回 null，也先给出明确状态，不直接走后续报错
+      var profile = await SupaAuth.getProfile();
+      if (!profile) {
+        console.warn('[DataLayer.init] profile is null after login; forcing re-auth');
+        return { mode: 'auth' };
+      }
+      if (!profile.shop_id) return { mode: 'setup' };
+
+      cache.profile = profile;
+
+      // v5-fix: shops 查询单独 try/catch，失败不阻塞整体
+      try {
+        var shopResult = await SupaAuth.getClient()
+          .from('shops')
+          .select('*')
+          .eq('id', profile.shop_id)
+          .single();
+        if (shopResult && shopResult.data) cache.shop = shopResult.data;
+        else if (shopResult && shopResult.error)
+          console.error('[DataLayer.init] shops query failed:', shopResult.error.code, shopResult.error.message);
+      } catch (e) {
+        console.error('[DataLayer.init] shops query THREW:', e.message);
+      }
+
+      // v5-fix: loadAllFromSupabase 也包 try/catch（即使内部 allSettled，也做双重保险）
+      try {
+        await loadAllFromSupabase();
+      } catch (e) {
+        console.error('[DataLayer.init] loadAllFromSupabase THREW, continuing with empty cache:', e.message);
+      }
+
+      return { mode: 'ready' };
+
+    } catch (e) {
+      // v5-fix: 整体兜底 —— 绝对不抛异常，根据当前缓存状态返回最合理的 mode
+      console.error('[DataLayer.init] FATAL, fallback degraded mode:', e.message, e && e.stack);
+      try {
+        if (cache.profile && cache.profile.shop_id) return { mode: 'ready', degraded: true, initError: e.message };
+        if (cache.profile) return { mode: 'setup', degraded: true, initError: e.message };
+        loadFromLocalStorage();
+        return { mode: 'local', degraded: true, initError: e.message };
+      } catch (_) {
+        return { mode: 'local', degraded: true, initError: e.message };
+      }
     }
-
-    // 检查登录状态
-    var session = await SupaAuth.getSession();
-    if (!session) {
-      return { mode: 'auth' }; // 需要登录
-    }
-
-    // 获取用户资料
-    var profile = await SupaAuth.getProfile();
-    if (!profile || !profile.shop_id) {
-      return { mode: 'setup' }; // 需要创建/加入店铺
-    }
-
-    cache.profile = profile;
-
-    // 加载店铺信息
-    var shopResult = await SupaAuth.getClient()
-      .from('shops')
-      .select('*')
-      .eq('id', profile.shop_id)
-      .single();
-    if (shopResult.data) cache.shop = shopResult.data;
-
-    // 并行加载所有数据
-    await loadAllFromSupabase();
-
-    return { mode: 'ready' };
   }
 
-  /* ===== 从 Supabase 加载全部数据到缓存 ===== */
+  /* ===== 从 Supabase 加载全部数据到缓存（v5-fix：allSettled + 每路容错，失败就降级为空数组）===== */
   async function loadAllFromSupabase() {
     var shopId = cache.profile.shop_id;
     var client = SupaAuth.getClient();
 
-    var results = await Promise.all([
+    // v5-fix: Promise.all → Promise.allSettled，任何一路 reject 都不会整体崩
+    var settled = await Promise.allSettled([
       client.from('staff').select('*').eq('shop_id', shopId).order('sort_order'),
       client.from('types').select('*, subtypes(*)').eq('shop_id', shopId).order('sort_order'),
       client.from('records').select('*, type:types(*), subtype:subtypes(*), staff:staff(*)')
         .eq('shop_id', shopId).order('record_date', { ascending: false })
     ]);
+    // v5-fix: helper：任何一路 rejected / error → 返回 []，打印详细错误
+    function _safe(s, fallback) {
+      if (!s) return fallback;
+      if (s.status === 'rejected') {
+        console.error('[loadAllFromSupabase] query REJECTED:', s.reason && s.reason.message);
+        return fallback;
+      }
+      var v = s.value;
+      if (v && v.error) {
+        console.error('[loadAllFromSupabase] query ERROR:', v.error.code, v.error.message, v.error.details);
+        return fallback;
+      }
+      return v.data || fallback;
+    }
+    var results = [_safe(settled[0], []), _safe(settled[1], []), _safe(settled[2], [])];
 
     // --- Staff ---
-    cache.staffObjects = results[0].data || [];
+    cache.staffObjects = results[0] || [];
     cache.staff = cache.staffObjects.map(function (s) { return s.name; });
     if (cache.staff.length === 0) {
       // 如果没有 staff 数据，添加当前用户
@@ -101,7 +139,7 @@ var DataLayer = (function () {
     }
 
     // --- Types (with subtypes) ---
-    cache.types = (results[1].data || []).map(function (t) {
+    cache.types = (results[1] || []).map(function (t) {
       return {
         id: t.id,
         name: t.name,
@@ -120,7 +158,7 @@ var DataLayer = (function () {
     });
 
     // --- Records ---
-    cache.records = (results[2].data || []).map(function (r) {
+    cache.records = (results[2] || []).map(function (r) {
       return {
         id: r.id,
         date: r.record_date,
