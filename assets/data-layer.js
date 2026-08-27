@@ -272,6 +272,28 @@ var DataLayer = (function () {
   async function addRecord(data) {
     // 判断是否为过渡记录：有过渡人且归属人不是自己
     var isTransfer = data.transferFrom && data.transferFrom !== data.staff;
+
+    // ===== v5.3.2-fix: 过渡记录去重防止重复 =====
+    // 如果是过渡记录，检查同一个「过渡人→接收人、日期、类型、金额」的记录
+    // 在 10 秒内是否已经存在，防止用户连续点击两次导致重复写入
+    if (isTransfer) {
+      var now = Date.now();
+      var dup = cache.records.find(function (r) {
+        if (!r) return false;
+        var sameTransfer = (r.transferFrom === data.transferFrom) && (r.staff === data.staff);
+        var sameCore = (r.date === data.date)
+                    && (r.typeId === data.typeId)
+                    && (Math.abs((r.amount || 0) - (data.amount || 0)) < 0.01);
+        var recentTemp = (String(r.id).indexOf('tmp_') === 0)
+                      && (now - parseInt(String(r.id).replace('tmp_', '')) < 15000);
+        return sameTransfer && sameCore && recentTemp;
+      });
+      if (dup) {
+        console.warn('[addRecord v5.3.2] 检测到过渡记录重复，拒绝写入：', dup);
+        return { data: null, error: { message: '检测到刚刚已经添加过一条相同的过渡记录，请稍候刷新页面查看。' } };
+      }
+    }
+
     var transferStatus = isTransfer ? 'pending' : 'approved';
 
     // 先更新缓存

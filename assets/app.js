@@ -337,10 +337,24 @@ var App = (function () {
     var el = document.getElementById('day-detail');
     if (!selectedDate) selectedDate = todayStr();
 
-    // 自己的记录 + 自己过渡给他人的记录
+    // ===== v5.3.2-fix: 修复过渡业绩重复 =====
+    // 1) 店长模式：getVisibleRecords() 已返回整店全部 records，
+    //    不需要再 append outgoingTransfers（否则同一条会显示两次）
+    // 2) 非店长模式：才需要把「我过渡给别人的、不在我可见列表里的 pending 记录」拼上
+    // 3) 最终都按 record.id 再做一次严格去重，双重保险
     var ownRecords = getVisibleRecords().filter(function (r) { return r.date === selectedDate; });
-    var outgoingTransfers = getMyOutgoingTransfers().filter(function (r) { return r.date === selectedDate; });
-    var records = ownRecords.concat(outgoingTransfers);
+    var outgoingTransfers = [];
+    if (!DataLayer.isManager()) {
+      outgoingTransfers = getMyOutgoingTransfers()
+        .filter(function (r) { return r.date === selectedDate; });
+    }
+    var _seenIds = Object.create(null);
+    var records = ownRecords.concat(outgoingTransfers).filter(function (r) {
+      if (!r || !r.id) return false;
+      if (_seenIds[r.id]) return false;
+      _seenIds[r.id] = true;
+      return true;
+    });
 
     var types = loadTypes();
     var typeMap = {};
