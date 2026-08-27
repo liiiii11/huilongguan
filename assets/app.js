@@ -1550,8 +1550,10 @@ var App = (function () {
     }
   }
 
-  // v5-fix: initAfterAuth 加 try/catch，DataLayer.init() 即使内部降级也不会向外抛错卡死
+  // v5.1-fix: initAfterAuth 加强 mode=auth 提示 —— 用户点了登录走这里
   async function initAfterAuth() {
+    var sessBefore = null;
+    try { sessBefore = SupaAuth.getSession ? (await SupaAuth.getSession()) : null; } catch (_) {}
     try {
       var result = await DataLayer.init();
       console.log('[initAfterAuth] DataLayer.init() returned:', result);
@@ -1564,18 +1566,21 @@ var App = (function () {
         showMainApp();
         try { checkAndPromptMigration(); } catch (e) { console.error('[initAfterAuth] migration prompt error:', e); }
       } else if (result.mode === 'auth') {
-        // 理论上不会走到，这里兜底
-        console.warn('[initAfterAuth] got mode=auth, going to auth page');
-        showAuthPage();
+        // ★ v5.1 修复关键：登录成功但读不到 profile，给用户明确提示，不再默默 showAuthPage 导致"没反应"
+        console.warn('[initAfterAuth] mode=auth after login → profiles RLS 死循环或 profiles 记录未生成');
+        if (sessBefore && sessBefore.user) {
+          toast('登录成功但无法读取您的账号资料：请通知管理员在 Supabase 控制台执行数据库修复脚本 update-v5.sql', 'error', 12000);
+        } else {
+          showAuthPage();
+        }
       } else if (result.mode === 'local') {
         console.warn('[initAfterAuth] got mode=local, showing main app with local data');
         showMainApp();
       }
     } catch (e) {
-      // v5-fix: 最后一道防线 —— DataLayer.init() 理论上已经不会向外 throw 了，但怕未来改代码又回退
       console.error('[initAfterAuth] FATAL THREW (showing main page best-effort):', e && e.message);
       try { showMainApp(); } catch (_) {}
-      toast('数据加载异常，请刷新页面', 'error');
+      toast('数据加载异常，请刷新页面。若反复出现请联系管理员更新数据库。', 'error');
     }
   }
 
@@ -1692,21 +1697,32 @@ var App = (function () {
     // Supabase 模式：检查登录状态
     var result = await DataLayer.init();
     if (result.mode === 'auth') {
+      // v5.1-fix: 先判断是否实际上已登录（但读不到 profile → 几乎肯定是 profiles RLS 死循环）
+      var _sess = null;
+      try { _sess = SupaAuth.getSession ? (await SupaAuth.getSession()) : null; } catch (_) {}
+      if (_sess && _sess.user) {
+        console.warn('[App.init] 有 session 但 mode=auth，几乎 100% 是 profiles RLS 死循环');
+        toast('登录状态异常：数据库策略未更新，请联系管理员在 Supabase 控制台运行 update-v5.sql', 'error', 10000);
+      }
       showAuthPage();
     } else if (result.mode === 'setup') {
       showSetupPage();
     } else if (result.mode === 'ready') {
       showMainApp();
-      checkAndPromptMigration();
+      try { checkAndPromptMigration(); } catch (e) { console.error('[init] migration error:', e); }
     } else {
       // local mode (Supabase init failed)
       var now2 = new Date();
       calYear = now2.getFullYear();
       calMonth = now2.getMonth();
       selectedDate = todayStr();
-      renderCalendar();
-      renderMonthSummary();
-      renderDayDetail();
+      try {
+        renderCalendar();
+        renderMonthSummary();
+        renderDayDetail();
+      } catch (e) {
+        console.error('[init] local mode render error:', e);
+      }
     }
   }
 
