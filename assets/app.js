@@ -5,6 +5,14 @@
 var App = (function () {
   'use strict';
 
+  /* ===== v5.6 HTML 转义辅助函数 ===== */
+  function escapeHtml(str) {
+    if (!str) return '';
+    var div = document.createElement('div');
+    div.appendChild(document.createTextNode(str));
+    return div.innerHTML;
+  }
+
   /* ===== Storage Keys ===== */
   var SK_RECORDS = 'sales_records_v5';
   var SK_TYPES = 'sales_types_v5';
